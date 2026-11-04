@@ -22,6 +22,14 @@ func WithRequestID(ctx context.Context, id string) context.Context {
 
 func RequestID(ctx context.Context) string { id, _ := ctx.Value(requestIDKey{}).(string); return id }
 
+// RecordSuppressedRejections summarizes rejections that exceeded the
+// per-client or global recording limit in a finished window.
+func (s *Store) RecordSuppressedRejections(ctx context.Context, route string, count, windowSeconds int, now time.Time) error {
+	return s.transaction(ctx, func(tx *sql.Tx) error {
+		return auditWithDetails(ctx, tx, now, "anonymous", "http.reject.suppressed", route, "", "denied", "rate_limited", map[string]any{"suppressed_count": count, "window_seconds": windowSeconds})
+	})
+}
+
 // HTTP rejections do not refresh sessions or trust any identity from the body.
 func (s *Store) RecordHTTPRejection(ctx context.Context, token, route, reason string, now time.Time) error {
 	return s.transaction(ctx, func(tx *sql.Tx) error {

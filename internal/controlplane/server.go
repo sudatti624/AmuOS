@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"log/slog"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -25,20 +24,26 @@ type bucket struct {
 	Until time.Time
 }
 type Server struct {
-	store     *store.Store
-	origin    string
-	clock     func() time.Time
-	mu        sync.Mutex
-	attempts  map[string]bucket
-	authSlots chan struct{}
+	store      *store.Store
+	origin     string
+	clock      func() time.Time
+	mu         sync.Mutex
+	attempts   map[string]bucket
+	authSlots  chan struct{}
+	rejections rejectionLimiter
 }
 
 func New(db *store.Store, origin string) (http.Handler, error) {
+	_, h, err := newServer(db, origin)
+	return h, err
+}
+
+func newServer(db *store.Store, origin string) (*Server, http.Handler, error) {
 	u, err := url.Parse(origin)
 	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Path != "" {
-		return nil, errors.New("origin must be an HTTPS origin without a path")
+		return nil, nil, errors.New("origin must be an HTTPS origin without a path")
 	}
-	s := &Server{store: db, origin: origin, clock: time.Now, attempts: map[string]bucket{}, authSlots: make(chan struct{}, 1)}
+	s := &Server{store: db, origin: origin, clock: time.Now, attempts: map[string]bucket{}, authSlots: make(chan struct{}, 1), rejections: rejectionLimiter{clients: map[string]bucket{}}}
 	r := chi.NewRouter()
 	r.Use(s.headers)
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) { s.reject(w, r, 404, "not_found") })
@@ -76,7 +81,7 @@ func New(db *store.Store, origin string) (http.Handler, error) {
 	asset := webui.Asset(func(w http.ResponseWriter, r *http.Request) { s.reject(w, r, 404, "not_found") })
 	r.Get("/assets/*", asset)
 	r.Get("/favicon.png", asset)
-	return r, nil
+	return s, r, nil
 }
 
 func (s *Server) headers(next http.Handler) http.Handler {
@@ -153,34 +158,6 @@ func (s *Server) sameOrigin(w http.ResponseWriter, r *http.Request) bool {
 		s.reject(w, r, 403, "origin_rejected")
 		return false
 	}
-	return true
-}
-
-func (s *Server) authAllowed(w http.ResponseWriter, r *http.Request) bool {
-	ip, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		ip = r.RemoteAddr
-	}
-	now := s.clock()
-	s.mu.Lock()
-	for k, v := range s.attempts {
-		if !now.Before(v.Until) {
-			delete(s.attempts, k)
-		}
-	}
-	b, exists := s.attempts[ip]
-	if (!exists && len(s.attempts) >= 4096) || b.Count >= 5 {
-		s.mu.Unlock()
-		w.Header().Set("Retry-After", "900")
-		s.reject(w, r, 429, "rate_limited")
-		return false
-	}
-	if !exists {
-		b.Until = now.Add(15 * time.Minute)
-	}
-	b.Count++
-	s.attempts[ip] = b
-	s.mu.Unlock()
 	return true
 }
 
