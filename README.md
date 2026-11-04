@@ -56,7 +56,13 @@ AmuOSは、複数のLinuxホストの情報や監視データを、一つのURL�
 
 ## はじめかた
 
-いまはリリース版の配布がないため、ソースからビルドします。必要なものは Go 1.27系、Node.js 24系、pnpm 12系です。
+### リリース版を使う（Linux amd64）
+
+[Releases](https://github.com/sudatti624/AmuOS/releases) から `amuos_<版>_linux_amd64.tar.gz` と `SHA256SUMS` をダウンロードし、[導入手順](docs/INSTALL.md) に沿って進めてください。展開して、証明書を置き、初回設定トークンを発行して起動するだけで試せます。
+
+### ソースからビルドする
+
+必要なものは Go 1.27系、Node.js 24系、pnpm 12系です。
 
 ```sh
 git clone https://github.com/sudatti624/AmuOS.git
@@ -115,7 +121,7 @@ Control Planeが認証・認可・データの保存を担当し、将来は各L
 | テスト | Go testing、Vitest、Playwright |
 | Agent | Go、mTLS（未実装） |
 
-対象環境はLinux amd64（Ubuntu Server 24.04 LTS・Debian 13）です。いまのところ動作を確認しているのはWindows上でのテストとビルドで、Linuxでの導入・運用の検証はこれからです。
+対象環境はLinux amd64（Ubuntu Server 24.04 LTS・Debian 13）です。自動テスト（GitHub Actions）では、Ubuntu 24.04 上でのテストとE2Eに加えて、配布用ファイルを Ubuntu 24.04 と Debian 13 に手順どおり導入して起動できることを確認しています。systemdでの常駐や長時間の運用の検証はこれからです。
 
 ## ロードマップ
 

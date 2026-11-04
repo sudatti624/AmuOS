@@ -15,6 +15,19 @@
 
 ## 検証証跡
 
+### v0.1の配布物と導入確認（2026-11-04）
+
+Linux amd64向けの配布物（`amuos_<版>_linux_amd64.tar.gz` と `SHA256SUMS`）を `scripts/package.sh` で作る。中身は `amuos-controlplane`（`--version` 付き）、`LICENSE`、`INSTALL.md`、`THIRD_PARTY_LICENSES.md`。後者は `scripts/licenses` がGo標準ライブラリ・リンクされるGoモジュール全件・画面に含まれるJS依存（Viteの `build.license`）のライセンス本文を集めたもの。
+
+`scripts/smoke-install.sh` は配布物を新しいディレクトリに展開し、docs/INSTALL.mdの手順（データディレクトリ作成、証明書配置、初回トークン発行、HTTPS起動）をたどって、画面の配信、初回設定、ログイン、`/me`、ホスト登録枠の作成、再起動後のログインとデータ保持を確認する。証明書は試験用の自己署名。
+
+| 環境 | 結果 |
+|---|---|
+| Windows amd64（手元） | vp check・test・build、go fmt/vet/test、Playwright 3件、配布物の作成とチェックサム確認がPASS |
+| GitHub Actions run 41831048683（`7576800`） | go（ubuntu-latest / windows-latest）、web（Playwright・配布物作成）、install-ubuntu（Ubuntu 24.04ランナー）、install-debian（debian:13コンテナ）がすべて成功 |
+
+実機のUbuntu Server・Debianでの導入、systemdでの常駐、長時間運転、バックアップ・復元は未実施（順序4・6）。手元のWindowsではWSL2が使えないため、Linuxでの確認はCIで行った。
+
 ### 順序3: Web画面と主要画面E2E（2026-11-04）
 
 `web/` にReact 19 / TypeScript / Vite+ 1.5.0 / Tailwind v4と、shadcn/uiの方式によるRadixベースの部品で画面を追加した。概要・ホスト・アクティビティ・ユーザーとグループ（ユーザー・グループ・招待）・設定と、初回設定・ログイン・招待受諾を提供する。監視・タスクは対応APIがないため導線を置いていない。ビルド結果はembedでControl Planeに含め、応答ごとのnonce付きCSPで配信する（ADR-013）。`GET /me` に本人のusernameを追加した。
@@ -32,7 +45,7 @@
 | pnpm exec playwright test | PASS、3件。実バイナリで初回設定からパスワード変更までの主要経路を確認し、CSP違反・ページ内エラーは0件 |
 | pnpm audit | 既知の脆弱性なし。実行時依存のライセンスはMIT・ISC・Apache-2.0・0BSD |
 
-E2Eの範囲はTESTING.mdの「§11・§16.1 画面」。ホスト削除・監視履歴・切断表示・タスク状態は対応APIがないため未検証。Linux上でのE2EとCIの初回実行は未実施。バイナリ配布時に、画面に含まれる依存のライセンス表記を同梱する作業は残っている。
+E2Eの範囲はTESTING.mdの「§11・§16.1 画面」。ホスト削除・監視履歴・切断表示・タスク状態は対応APIがないため未検証。CI（GitHub Actions、`658adf2`）でも、ubuntu-latest上でgo test・vet・race・Linuxビルド、windows-latest上でgo test・vet、webジョブでvp check・test・build・画面を含むビルド・Playwright 3件がすべて成功した。依存ライセンスの同梱は、下の「v0.1の配布物と導入確認」で対応した。
 
 ### 順序0・1の完了確認（2026-11-04）
 

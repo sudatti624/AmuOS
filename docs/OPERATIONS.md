@@ -40,6 +40,8 @@ $env:AMUOS_DEV_CONTROL_PLANE = "https://127.0.0.1:8443"
 pnpm exec vp dev
 ```
 
+リリース版の導入手順は [INSTALL.md](INSTALL.md)。配布物は Linux 上で `bash scripts/package.sh <版>` で作る（画面のビルド後）。
+
 E2Eは `go build -o dist/devcert.exe ./scripts/devcert` でテスト用の証明書ツールも用意し、`web/` で `pnpm exec playwright install chromium` の後に `pnpm exec playwright test` を実行する。テストは実バイナリを一時ディレクトリの新しいDB・自己署名証明書で起動し、終了後に削除する。`devcert` の証明書は試験専用で、運用には使わない。
 
 ## 初回設定とHTTPS起動
