@@ -75,7 +75,7 @@ func New(db *store.Store, origin string) (http.Handler, error) {
 	}
 	asset := webui.Asset(func(w http.ResponseWriter, r *http.Request) { s.reject(w, r, 404, "not_found") })
 	r.Get("/assets/*", asset)
-	r.Get("/favicon.svg", asset)
+	r.Get("/favicon.png", asset)
 	return r, nil
 }
 

@@ -13,12 +13,15 @@ import { Loading } from "@/components/common";
 import { Button } from "@/components/ui/button";
 import { canManageIdentity, canReadAudit, canReadHosts } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
+import logo from "@/assets/logo.png";
 
-function Brand() {
+function Brand({ large = false }: { large?: boolean }) {
   return (
-    <div className="flex items-center gap-2 px-2">
-      <img src="/favicon.svg" alt="" className="size-7" />
-      <span className="text-base font-semibold tracking-tight">AmuOS</span>
+    <div className="flex items-center gap-2.5 px-2">
+      <img src={logo} alt="" className={large ? "size-10" : "size-8"} />
+      <span className={cn("font-semibold tracking-tight", large ? "text-2xl" : "text-lg")}>
+        <span className="brand-text">Amu</span>OS
+      </span>
     </div>
   );
 }
@@ -33,14 +36,18 @@ export function AuthShell({
   children: ReactNode;
 }) {
   return (
-    <main className="flex min-h-dvh items-center justify-center p-4">
+    <main className="brand-glow flex min-h-dvh items-center justify-center p-4">
       <div className="flex w-full max-w-sm flex-col gap-6">
-        <Brand />
-        <div className="flex flex-col gap-1">
-          <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
-          <p className="text-sm text-muted-foreground">{description}</p>
+        <Brand large />
+        <div className="relative flex flex-col gap-6 overflow-hidden rounded-xl border bg-card/90 p-6 shadow-lg backdrop-blur">
+          <div aria-hidden className="brand-bar absolute inset-x-0 top-0 h-1" />
+          <div className="flex flex-col gap-1">
+            <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+            <p className="text-sm text-muted-foreground">{description}</p>
+          </div>
+          {children}
         </div>
-        {children}
+        <p className="text-center text-xs text-muted-foreground">散らばった機能を、一枚に編む。</p>
       </div>
     </main>
   );
@@ -74,8 +81,9 @@ export function AppLayout() {
             end={to === "/"}
             className={({ isActive }) =>
               cn(
-                "flex items-center gap-2 rounded-md px-3 py-2 text-sm whitespace-nowrap text-muted-foreground outline-none hover:bg-accent hover:text-accent-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50",
-                isActive && "bg-accent font-medium text-accent-foreground",
+                "relative flex items-center gap-2 rounded-md px-3 py-2 text-sm whitespace-nowrap text-muted-foreground outline-none hover:bg-accent hover:text-accent-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                isActive &&
+                  "bg-accent font-medium text-accent-foreground before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full before:bg-primary",
               )
             }
           >
@@ -95,7 +103,8 @@ export function AppLayout() {
       >
         本文へ移動
       </a>
-      <aside className="flex flex-col gap-4 border-b bg-sidebar p-3 md:sticky md:top-0 md:h-dvh md:w-60 md:border-r md:border-b-0">
+      <div aria-hidden className="brand-bar fixed inset-x-0 top-0 z-40 h-0.5" />
+      <aside className="flex flex-col gap-4 border-b bg-sidebar p-3 pt-4 md:sticky md:top-0 md:h-dvh md:w-60 md:border-r md:border-b-0">
         <div className="flex items-center justify-between md:flex-col md:items-stretch md:gap-4">
           <Brand />
           <div className="flex items-center gap-2 md:hidden">
@@ -114,10 +123,18 @@ export function AppLayout() {
           {nav}
         </nav>
         <div className="mt-auto hidden flex-col gap-2 border-t pt-3 md:flex">
-          <p className="truncate px-2 text-sm" title={me.username}>
-            <span className="text-muted-foreground">ログイン中: </span>
-            <span className="font-medium">{me.username}</span>
-          </p>
+          <div className="flex items-center gap-2 px-2" title={me.username}>
+            <span
+              aria-hidden
+              className="brand-bar flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white uppercase"
+            >
+              {me.username.slice(0, 1)}
+            </span>
+            <p className="min-w-0 truncate text-sm">
+              <span className="sr-only">ログイン中: </span>
+              <span className="font-medium">{me.username}</span>
+            </p>
+          </div>
           <Button variant="ghost" className="justify-start" onClick={() => void logout()}>
             <LogOutIcon />
             ログアウト

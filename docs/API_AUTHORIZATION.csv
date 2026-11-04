@@ -35,4 +35,4 @@ GET,/activity,static,none,none,no,none
 GET,/users,static,none,none,no,none
 GET,/settings,static,none,none,no,none
 GET,/assets/*,static,none,none,no,none
-GET,/favicon.svg,static,none,none,no,none
+GET,/favicon.png,static,none,none,no,none

@@ -136,6 +136,6 @@ Owner追加・解除では他の非Owner割当を維持する。状態が既に�
 
 ## Web画面の配信
 
-`GET /`、`/setup`、`/login`、`/invite`、`/hosts`、`/activity`、`/users`、`/settings` は画面の共通HTMLを返し、`/assets/*` と `/favicon.svg` はビルド済みファイルを返す。いずれも認証不要で、データを含まない。データの取得・変更は上記のAPIで認可する。これ以外のパスは従来どおり404で、`http.reject` を監査する。
+`GET /`、`/setup`、`/login`、`/invite`、`/hosts`、`/activity`、`/users`、`/settings` は画面の共通HTMLを返し、`/assets/*` と `/favicon.png` はビルド済みファイルを返す。いずれも認証不要で、データを含まない。データの取得・変更は上記のAPIで認可する。これ以外のパスは従来どおり404で、`http.reject` を監査する。
 
 HTMLの応答は `Cache-Control: no-store` と、応答ごとのnonceを含むCSPを返す。`/assets/` のファイル名は内容のハッシュを含むため、長期キャッシュを許可する。画面を含めずにビルドしたバイナリは、画面のページに503と案内文を返す。

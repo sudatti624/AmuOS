@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="web/public/favicon.svg" alt="" width="72" height="72">
+<img src="docs/images/logo.png" alt="AmuOSのロゴ" width="96" height="96">
 
 # AmuOS
 
