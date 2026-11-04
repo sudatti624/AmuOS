@@ -3,12 +3,14 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 )
 
 func (s *Store) RunMaintenance(ctx context.Context, now time.Time) error {
-	_, err := s.RunAuditMaintenance(ctx, now)
-	return err
+	_, auditErr := s.RunAuditMaintenance(ctx, now)
+	keyErr := s.ExpireIdempotency(ctx, now)
+	return errors.Join(auditErr, keyErr)
 }
 
 // The due-time claim, deletion, audit and schedule update commit together.

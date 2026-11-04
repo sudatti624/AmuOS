@@ -277,6 +277,12 @@ func (s *Server) createHost(w http.ResponseWriter, r *http.Request) {
 	if !s.sameOrigin(w, r) {
 		return
 	}
+	key := r.Header.Get("Idempotency-Key")
+	if !store.ValidIdempotencyKey(key) {
+		s.reject(w, r, 400, "idempotency_key_required")
+		return
+	}
+	r = r.WithContext(store.WithIdempotencyKey(r.Context(), key))
 	var body struct {
 		Name string `json:"name"`
 	}
@@ -291,6 +297,9 @@ func (s *Server) createHost(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.failure(w, r, err)
 		return
+	}
+	if host.Replayed {
+		w.Header().Set("Idempotency-Replayed", "true")
 	}
 	respond(w, 201, host)
 }

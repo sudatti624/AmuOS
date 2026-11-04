@@ -28,13 +28,14 @@ var (
 //go:embed migrations/*.sql
 var migrations embed.FS
 
-var migrationNames = []string{"001_foundation.sql", "002_accounts.sql", "003_authorization.sql", "004_audit_requests.sql", "005_audit_retention.sql", "006_audit_maintenance.sql"}
+var migrationNames = []string{"001_foundation.sql", "002_accounts.sql", "003_authorization.sql", "004_audit_requests.sql", "005_audit_retention.sql", "006_audit_maintenance.sql", "007_idempotency.sql"}
 
 type Store struct{ db *sql.DB }
 type Host struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	State string `json:"state"`
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	State    string `json:"state"`
+	Replayed bool   `json:"-"`
 }
 type Event struct {
 	ID        int64           `json:"id"`
@@ -377,26 +378,46 @@ func (s *Store) CreateHost(ctx context.Context, token, csrf, name string, now ti
 	if len(host.Name) < 1 || len(host.Name) > 128 {
 		return Host{}, ErrInput
 	}
-	var denied bool
+	var rejected error
 	err := s.transaction(ctx, func(tx *sql.Tx) error {
 		p, hash, err := authenticate(tx, token, now)
 		if err != nil {
 			return err
 		}
 		if !security.EqualDigest(csrf, hash) || !p.Allows(rbac.HostManage, "") {
-			denied = true
+			rejected = ErrDenied
 			return audit(ctx, tx, now, p.ID, "host.create", "", "", "denied", "forbidden")
+		}
+		key := idempotencyKey(ctx)
+		if key != "" {
+			previous, found, reason, err := lookupHostOperation(tx, p.ID, key, host.Name, now)
+			if err != nil {
+				return err
+			}
+			if found {
+				if reason != "" {
+					rejected = ErrConflict
+					return audit(ctx, tx, now, p.ID, "host.create", "host-registry", "", "denied", reason)
+				}
+				host = previous
+				return auditWithDetails(ctx, tx, now, p.ID, "host.create.replay", host.ID, host.ID, "success", "", map[string]any{"replayed": true, "resource_id": host.ID})
+			}
 		}
 		if _, err := tx.Exec("INSERT INTO hosts(id,name) VALUES(?,?)", host.ID, host.Name); err != nil {
 			return err
+		}
+		if key != "" {
+			if err := recordHostOperation(tx, p.ID, key, host, now); err != nil {
+				return err
+			}
 		}
 		return auditWithDetails(ctx, tx, now, p.ID, "host.create", host.ID, host.ID, "success", "", map[string]any{"before": nil, "after": host})
 	})
 	if err != nil {
 		return Host{}, err
 	}
-	if denied {
-		return Host{}, ErrDenied
+	if rejected != nil {
+		return Host{}, rejected
 	}
 	return host, nil
 }

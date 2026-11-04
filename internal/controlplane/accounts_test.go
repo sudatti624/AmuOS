@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/sudatti624/AmuOS/internal/rbac"
+	"github.com/sudatti624/AmuOS/internal/security"
 	"github.com/sudatti624/AmuOS/internal/store"
 )
 
@@ -23,6 +24,9 @@ func accountHTTP(t *testing.T, h http.Handler, method, path string, body any, se
 	r := httptest.NewRequest(method, "https://amuos.test"+path, bytes.NewReader(data))
 	r.Header.Set("Origin", "https://amuos.test")
 	r.Header.Set("Content-Type", "application/json")
+	if method == "POST" && path == "/api/v1/hosts" {
+		r.Header.Set("Idempotency-Key", security.Token())
+	}
 	r.Header.Set("X-CSRF-Token", csrf)
 	if session.Token != "" {
 		r.AddCookie(&http.Cookie{Name: cookieName, Value: session.Token})

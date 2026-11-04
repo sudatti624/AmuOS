@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sudatti624/AmuOS/internal/security"
 	"github.com/sudatti624/AmuOS/internal/store"
 )
 
@@ -33,6 +34,9 @@ func TestAuthenticatedHTTPFlow(t *testing.T) {
 		data, _ := json.Marshal(body)
 		r := httptest.NewRequest(method, origin+path, bytes.NewReader(data))
 		r.Header.Set("Content-Type", "application/json")
+		if method == "POST" && path == "/api/v1/hosts" {
+			r.Header.Set("Idempotency-Key", security.Token())
+		}
 		r.Header.Set("Origin", from)
 		if cookie != nil {
 			r.AddCookie(cookie)
