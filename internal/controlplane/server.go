@@ -56,6 +56,8 @@ func New(db *store.Store, origin string) (http.Handler, error) {
 	r.Delete("/api/v1/groups/{id}", s.deleteGroup)
 	r.Get("/api/v1/users/{id}/grants", s.userGrants)
 	r.Put("/api/v1/users/{id}/grants", s.setUserGrants)
+	r.Put("/api/v1/users/{id}/owner", s.setOwnership)
+	r.Post("/api/v1/ownership/transfer", s.transferOwnership)
 	r.Get("/api/v1/me", s.identity)
 	r.Get("/api/v1/hosts", s.hosts)
 	r.Post("/api/v1/hosts", s.createHost)

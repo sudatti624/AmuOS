@@ -25,7 +25,7 @@ AmuOSの名前は「編む」から取りました。編み物は、一本一本
 | 初回設定 | ローカルで発行する、有効期限10分・一回限りのトークンによるOwner作成 |
 | 認証 | Argon2idによるパスワード保護、ログイン・ログアウト、セッションの有効期限 |
 | アカウント | 期限付き招待の発行・受諾・取消、パスワード変更、ユーザー一覧・無効化・再有効化 |
-| Ownerの保護 | 状態変更時の再認証、最後の有効Ownerの無効化防止 |
+| Ownerの管理 | 再認証付きの追加・解除・移譲、最後の有効Ownerの解除・無効化防止 |
 | リクエスト保護 | HTTPS必須、Secure Cookie、Origin・CSRF検証、認証入口の回数・並列数制限 |
 | RBAC | 固定ロールとユーザー・グループの範囲付き割当を評価する基盤、要求ごとの最新権限確認 |
 | グループ管理 | グループの作成・削除、所属・固定割当・非Ownerの直接割当の編集 |
@@ -33,7 +33,7 @@ AmuOSの名前は「編む」から取りました。編み物は、一本一本
 | 監査 | 重要な変更と監査イベントの原子的保存、権限範囲に応じたログ閲覧 |
 | 永続化 | SQLite、バージョン付きスキーマ適用 |
 
-Ownerロールの追加・解除・移譲は未実装です。ホストIDの確保はAgent登録を意味せず、実ホストの情報・監視値はまだ取得しません。
+ホストIDの確保はAgent登録を意味せず、実ホストの情報・監視値はまだ取得しません。
 
 ## 初期リリースの方針
 
@@ -153,6 +153,13 @@ Linux:
 | POST | `/api/v1/auth/password` | 本人のパスワード変更と全セッション失効 |
 | GET | `/api/v1/users` | 管理権限を持つユーザーによるアカウント一覧 |
 | PATCH | `/api/v1/users/{id}/enabled` | ユーザーの有効化・無効化 |
+| GET / POST | `/api/v1/groups` | グループ一覧 / 作成 |
+| PUT | `/api/v1/groups/{id}/members` | グループ所属の置換 |
+| PUT | `/api/v1/groups/{id}/grants` | グループの固定割当の置換 |
+| DELETE | `/api/v1/groups/{id}` | グループの削除 |
+| GET / PUT | `/api/v1/users/{id}/grants` | 直接割当の参照 / 非Owner割当の置換 |
+| PUT | `/api/v1/users/{id}/owner` | Owner割当の追加・解除 |
+| POST | `/api/v1/ownership/transfer` | Ownerの移譲 |
 | POST | `/api/v1/invitations` | 非Ownerの招待を発行 |
 | POST | `/api/v1/invitations/accept` | 招待を受諾してアカウントを作成 |
 | DELETE | `/api/v1/invitations/{id}` | 未使用招待を取消 |

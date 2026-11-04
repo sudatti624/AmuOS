@@ -238,8 +238,14 @@ func TestConcurrentOwnerDisableKeepsOneOwner(t *testing.T) {
 	s, first, _ := prepared(t)
 	ctx := context.Background()
 	secondUser, second := inviteUser(t, s, first, "second", rbac.Grant{Role: rbac.Admin, All: true})
-	// Owner grant management is not exposed yet. Seed the second Owner for the invariant test.
-	if _, err := s.db.Exec("UPDATE grants SET role='Owner' WHERE user_id=?", secondUser.ID); err != nil {
+	if err := s.Reauthenticate(ctx, first.Token, first.CSRF, testPassword, testTime); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetOwnership(ctx, first.Token, first.CSRF, secondUser.ID, true, testTime); err != nil {
+		t.Fatal(err)
+	}
+	second, err := s.Login(ctx, "second", testPassword, testTime)
+	if err != nil {
 		t.Fatal(err)
 	}
 	for _, session := range []Session{first, second} {

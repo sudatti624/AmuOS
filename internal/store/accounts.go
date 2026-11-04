@@ -170,8 +170,8 @@ func (s *Store) SetUserEnabled(ctx context.Context, token, csrf, targetID string
 				return err
 			}
 			if target.Enabled && !enabled {
-				var count int
-				if err := tx.QueryRow(`SELECT count(DISTINCT u.id) FROM users u JOIN grants g ON g.user_id=u.id WHERE u.enabled=1 AND g.role='Owner' AND g.all_hosts=1`).Scan(&count); err != nil {
+				count, err := activeOwnerCount(tx)
+				if err != nil {
 					return err
 				}
 				if count <= 1 {
