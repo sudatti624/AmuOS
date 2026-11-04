@@ -57,9 +57,9 @@ func (s *Store) accountMutation(ctx context.Context, token, csrf, action, target
 			default:
 				return rejected
 			}
-			return audit(tx, now, p.ID, action, target, "", "denied", reason)
+			return audit(ctx, tx, now, p.ID, action, target, "", "denied", reason)
 		}
-		return audit(tx, now, p.ID, action, target, "", "success", "")
+		return audit(ctx, tx, now, p.ID, action, target, "", "success", "")
 	})
 	if err != nil {
 		return err
@@ -115,7 +115,7 @@ func (s *Store) Users(ctx context.Context, token string, now time.Time) ([]User,
 		}
 		if !p.Allows(rbac.IdentityManage, "") {
 			denied = true
-			return audit(tx, now, p.ID, "user.list", "", "", "denied", "forbidden")
+			return audit(ctx, tx, now, p.ID, "user.list", "", "", "denied", "forbidden")
 		}
 		rows, err := tx.Query("SELECT id,username,enabled FROM users ORDER BY username")
 		if err != nil {
@@ -307,7 +307,7 @@ func (s *Store) AcceptInvitation(ctx context.Context, token, password string, no
 		}
 		reject := func() error {
 			rejected = true
-			return audit(tx, now, "anonymous", "invitation.accept", id, "", "denied", "invalid_invitation")
+			return audit(ctx, tx, now, "anonymous", "invitation.accept", id, "", "denied", "invalid_invitation")
 		}
 		if errors.Is(err, sql.ErrNoRows) || revoked.Valid || consumed.Valid {
 			return reject()
@@ -381,7 +381,7 @@ func (s *Store) AcceptInvitation(ctx context.Context, token, password string, no
 		if _, err := tx.Exec("UPDATE invitations SET consumed_at=? WHERE id=?", now.Unix(), id); err != nil {
 			return err
 		}
-		return audit(tx, now, result.ID, "invitation.accept", id, "", "success", "")
+		return audit(ctx, tx, now, result.ID, "invitation.accept", id, "", "success", "")
 	})
 	if err != nil {
 		return User{}, err

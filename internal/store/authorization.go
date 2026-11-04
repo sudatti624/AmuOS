@@ -175,7 +175,7 @@ func (s *Store) Groups(ctx context.Context, token string, now time.Time) ([]Grou
 		}
 		if !p.Allows(rbac.IdentityManage, "") {
 			denied = true
-			return audit(tx, now, p.ID, "group.list", "", "", "denied", "forbidden")
+			return audit(ctx, tx, now, p.ID, "group.list", "", "", "denied", "forbidden")
 		}
 		rows, err := tx.Query("SELECT id FROM groups ORDER BY name")
 		if err != nil {
@@ -348,7 +348,7 @@ func (s *Store) UserGrants(ctx context.Context, token, id string, now time.Time)
 		}
 		if !p.Allows(rbac.IdentityManage, "") {
 			denied = true
-			return audit(tx, now, p.ID, "user.grants.read", id, "", "denied", "forbidden")
+			return audit(ctx, tx, now, p.ID, "user.grants.read", id, "", "denied", "forbidden")
 		}
 		if _, err := principal(tx, id); errors.Is(err, sql.ErrNoRows) {
 			return ErrNotFound

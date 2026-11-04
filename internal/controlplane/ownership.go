@@ -13,15 +13,15 @@ func (s *Server) setOwnership(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Enabled *bool `json:"enabled"`
 	}
-	if !decode(w, r, &body) {
+	if !s.decode(w, r, &body) {
 		return
 	}
 	if body.Enabled == nil {
-		respond(w, 400, map[string]string{"error": "invalid_input"})
+		s.reject(w, r, 400, "invalid_input")
 		return
 	}
 	if err := s.store.SetOwnership(r.Context(), sessionToken(r), r.Header.Get("X-CSRF-Token"), chi.URLParam(r, "id"), *body.Enabled, s.clock()); err != nil {
-		failure(w, err)
+		s.failure(w, r, err)
 		return
 	}
 	respond(w, 200, map[string]string{"status": "updated"})
@@ -34,15 +34,15 @@ func (s *Server) transferOwnership(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		UserID string `json:"user_id"`
 	}
-	if !decode(w, r, &body) {
+	if !s.decode(w, r, &body) {
 		return
 	}
 	if body.UserID == "" {
-		respond(w, 400, map[string]string{"error": "invalid_input"})
+		s.reject(w, r, 400, "invalid_input")
 		return
 	}
 	if err := s.store.TransferOwnership(r.Context(), sessionToken(r), r.Header.Get("X-CSRF-Token"), body.UserID, s.clock()); err != nil {
-		failure(w, err)
+		s.failure(w, r, err)
 		return
 	}
 	clearSession(w)

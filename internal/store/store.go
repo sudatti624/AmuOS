@@ -27,7 +27,7 @@ var (
 //go:embed migrations/*.sql
 var migrations embed.FS
 
-var migrationNames = []string{"001_foundation.sql", "002_accounts.sql", "003_authorization.sql"}
+var migrationNames = []string{"001_foundation.sql", "002_accounts.sql", "003_authorization.sql", "004_audit_requests.sql"}
 
 type Store struct{ db *sql.DB }
 type Host struct {
@@ -36,14 +36,15 @@ type Host struct {
 	State string `json:"state"`
 }
 type Event struct {
-	ID      int64  `json:"id"`
-	At      int64  `json:"at"`
-	Actor   string `json:"actor_id"`
-	Action  string `json:"action"`
-	Target  string `json:"target_id"`
-	HostID  string `json:"host_id,omitempty"`
-	Outcome string `json:"outcome"`
-	Reason  string `json:"reason"`
+	ID        int64  `json:"id"`
+	At        int64  `json:"at"`
+	Actor     string `json:"actor_id"`
+	Action    string `json:"action"`
+	Target    string `json:"target_id"`
+	HostID    string `json:"host_id,omitempty"`
+	Outcome   string `json:"outcome"`
+	Reason    string `json:"reason"`
+	RequestID string `json:"request_id,omitempty"`
 }
 type Session struct {
 	Token  string
@@ -117,12 +118,12 @@ func Open(path string) (*Store, error) {
 
 func (s *Store) Close() error { return s.db.Close() }
 
-func audit(tx *sql.Tx, now time.Time, actor, action, target, host, outcome, reason string) error {
+func audit(ctx context.Context, tx *sql.Tx, now time.Time, actor, action, target, host, outcome, reason string) error {
 	var hostValue any
 	if host != "" {
 		hostValue = host
 	}
-	_, err := tx.Exec(`INSERT INTO audit_events(at,actor_id,action,target_id,host_id,outcome,reason) VALUES(?,?,?,?,?,?,?)`, now.Unix(), actor, action, target, hostValue, outcome, reason)
+	_, err := tx.Exec(`INSERT INTO audit_events(at,actor_id,action,target_id,host_id,outcome,reason,request_id) VALUES(?,?,?,?,?,?,?,?)`, now.Unix(), actor, action, target, hostValue, outcome, reason, RequestID(ctx))
 	return err
 }
 
@@ -153,7 +154,7 @@ func (s *Store) PrepareBootstrap(ctx context.Context, now time.Time) (string, er
 		if err != nil {
 			return err
 		}
-		return audit(tx, now, "local", "setup.prepare", "", "", "success", "")
+		return audit(ctx, tx, now, "local", "setup.prepare", "", "", "success", "")
 	})
 	return token, err
 }
@@ -206,7 +207,7 @@ func (s *Store) Setup(ctx context.Context, token, username, password string, now
 		if _, err := tx.Exec("DELETE FROM bootstrap"); err != nil {
 			return err
 		}
-		return audit(tx, now, id, "setup.complete", id, "", "success", "")
+		return audit(ctx, tx, now, id, "setup.complete", id, "", "success", "")
 	})
 }
 
@@ -275,7 +276,7 @@ func (s *Store) Login(ctx context.Context, username, password string, now time.T
 		valid := security.VerifyPassword(password, hash)
 		if !valid || !enabled {
 			rejected = true
-			return audit(tx, now, "anonymous", "auth.login", "", "", "denied", "invalid_credentials")
+			return audit(ctx, tx, now, "anonymous", "auth.login", "", "", "denied", "invalid_credentials")
 		}
 		if _, err := tx.Exec("DELETE FROM sessions WHERE expires_at<=? OR last_seen<=?", now.Unix(), now.Add(-30*time.Minute).Unix()); err != nil {
 			return err
@@ -283,7 +284,7 @@ func (s *Store) Login(ctx context.Context, username, password string, now time.T
 		if _, err := tx.Exec("INSERT INTO sessions(token_hash,csrf_hash,user_id,created_at,last_seen,expires_at) VALUES(?,?,?,?,?,?)", security.Digest(result.Token), security.Digest(result.CSRF), result.UserID, now.Unix(), now.Unix(), now.Add(12*time.Hour).Unix()); err != nil {
 			return err
 		}
-		return audit(tx, now, result.UserID, "auth.login", result.UserID, "", "success", "")
+		return audit(ctx, tx, now, result.UserID, "auth.login", result.UserID, "", "success", "")
 	})
 	if err != nil {
 		return Session{}, err
@@ -309,12 +310,12 @@ func (s *Store) Logout(ctx context.Context, token, csrf string, now time.Time) e
 		}
 		if !security.EqualDigest(csrf, hash) {
 			denied = true
-			return audit(tx, now, p.ID, "auth.logout", p.ID, "", "denied", "invalid_csrf")
+			return audit(ctx, tx, now, p.ID, "auth.logout", p.ID, "", "denied", "invalid_csrf")
 		}
 		if _, err := tx.Exec("DELETE FROM sessions WHERE token_hash=?", security.Digest(token)); err != nil {
 			return err
 		}
-		return audit(tx, now, p.ID, "auth.logout", p.ID, "", "success", "")
+		return audit(ctx, tx, now, p.ID, "auth.logout", p.ID, "", "success", "")
 	})
 	if err != nil {
 		return err
@@ -364,12 +365,12 @@ func (s *Store) CreateHost(ctx context.Context, token, csrf, name string, now ti
 		}
 		if !security.EqualDigest(csrf, hash) || !p.Allows(rbac.HostManage, "") {
 			denied = true
-			return audit(tx, now, p.ID, "host.create", "", "", "denied", "forbidden")
+			return audit(ctx, tx, now, p.ID, "host.create", "", "", "denied", "forbidden")
 		}
 		if _, err := tx.Exec("INSERT INTO hosts(id,name) VALUES(?,?)", host.ID, host.Name); err != nil {
 			return err
 		}
-		return audit(tx, now, p.ID, "host.create", host.ID, host.ID, "success", "")
+		return audit(ctx, tx, now, p.ID, "host.create", host.ID, host.ID, "success", "")
 	})
 	if err != nil {
 		return Host{}, err
@@ -399,16 +400,16 @@ func (s *Store) Events(ctx context.Context, token string, now time.Time) ([]Even
 		}
 		if !allowed {
 			denied = true
-			return audit(tx, now, p.ID, "audit.read", "", "", "denied", "forbidden")
+			return audit(ctx, tx, now, p.ID, "audit.read", "", "", "denied", "forbidden")
 		}
-		rows, err := tx.Query("SELECT id,at,actor_id,action,target_id,coalesce(host_id,''),outcome,reason FROM audit_events ORDER BY id DESC")
+		rows, err := tx.Query("SELECT id,at,actor_id,action,target_id,coalesce(host_id,''),outcome,reason,request_id FROM audit_events ORDER BY id DESC")
 		if err != nil {
 			return err
 		}
 		defer rows.Close()
 		for rows.Next() {
 			var e Event
-			if err := rows.Scan(&e.ID, &e.At, &e.Actor, &e.Action, &e.Target, &e.HostID, &e.Outcome, &e.Reason); err != nil {
+			if err := rows.Scan(&e.ID, &e.At, &e.Actor, &e.Action, &e.Target, &e.HostID, &e.Outcome, &e.Reason, &e.RequestID); err != nil {
 				return err
 			}
 			if p.Allows(rbac.AuditRead, e.HostID) {

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/sudatti624/AmuOS/internal/security"
 	"github.com/sudatti624/AmuOS/internal/store"
 )
 
@@ -38,6 +40,8 @@ func New(db *store.Store, origin string) (http.Handler, error) {
 	s := &Server{store: db, origin: origin, clock: time.Now, attempts: map[string]bucket{}, authSlots: make(chan struct{}, 1)}
 	r := chi.NewRouter()
 	r.Use(s.headers)
+	r.NotFound(func(w http.ResponseWriter, r *http.Request) { s.reject(w, r, 404, "not_found") })
+	r.MethodNotAllowed(func(w http.ResponseWriter, r *http.Request) { s.reject(w, r, 405, "method_not_allowed") })
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) { respond(w, 200, map[string]string{"status": "ok"}) })
 	r.Post("/api/v1/setup", s.setup)
 	r.Post("/api/v1/auth/login", s.login)
@@ -67,6 +71,9 @@ func New(db *store.Store, origin string) (http.Handler, error) {
 
 func (s *Server) headers(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := security.Token()
+		r = r.WithContext(store.WithRequestID(r.Context(), id))
+		w.Header().Set("X-Request-ID", id)
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
@@ -82,7 +89,7 @@ func respond(w http.ResponseWriter, status int, value any) {
 	_ = json.NewEncoder(w).Encode(value)
 }
 
-func failure(w http.ResponseWriter, err error) {
+func (s *Server) failure(w http.ResponseWriter, r *http.Request, err error) {
 	status, code := http.StatusInternalServerError, "internal_error"
 	switch {
 	case errors.Is(err, store.ErrCredentials):
@@ -96,23 +103,28 @@ func failure(w http.ResponseWriter, err error) {
 	case errors.Is(err, store.ErrNotFound):
 		status, code = 404, "not_found"
 	}
+	if status < 500 {
+		s.reject(w, r, status, code)
+		return
+	}
+	slog.Error("request failed", "request_id", store.RequestID(r.Context()))
 	respond(w, status, map[string]string{"error": code})
 }
 
-func decode(w http.ResponseWriter, r *http.Request, value any) bool {
+func (s *Server) decode(w http.ResponseWriter, r *http.Request, value any) bool {
 	if strings.Split(r.Header.Get("Content-Type"), ";")[0] != "application/json" {
-		respond(w, 415, map[string]string{"error": "json_required"})
+		s.reject(w, r, 415, "json_required")
 		return false
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 16*1024)
 	d := json.NewDecoder(r.Body)
 	d.DisallowUnknownFields()
 	if err := d.Decode(value); err != nil {
-		respond(w, 400, map[string]string{"error": "invalid_json"})
+		s.reject(w, r, 400, "invalid_json")
 		return false
 	}
 	if err := d.Decode(new(any)); !errors.Is(err, io.EOF) {
-		respond(w, 400, map[string]string{"error": "invalid_json"})
+		s.reject(w, r, 400, "invalid_json")
 		return false
 	}
 	return true
@@ -128,7 +140,7 @@ func sessionToken(r *http.Request) string {
 
 func (s *Server) sameOrigin(w http.ResponseWriter, r *http.Request) bool {
 	if r.Header.Get("Origin") != s.origin {
-		respond(w, 403, map[string]string{"error": "origin_rejected"})
+		s.reject(w, r, 403, "origin_rejected")
 		return false
 	}
 	return true
@@ -150,7 +162,7 @@ func (s *Server) authAllowed(w http.ResponseWriter, r *http.Request) bool {
 	if (!exists && len(s.attempts) >= 4096) || b.Count >= 5 {
 		s.mu.Unlock()
 		w.Header().Set("Retry-After", "900")
-		respond(w, 429, map[string]string{"error": "rate_limited"})
+		s.reject(w, r, 429, "rate_limited")
 		return false
 	}
 	if !exists {
@@ -168,7 +180,7 @@ func (s *Server) acquireAuth(w http.ResponseWriter, r *http.Request) bool {
 		return true
 	default:
 		w.Header().Set("Retry-After", "1")
-		respond(w, 503, map[string]string{"error": "auth_busy"})
+		s.reject(w, r, 503, "auth_busy")
 		return false
 	}
 }
@@ -182,11 +194,11 @@ func (s *Server) setup(w http.ResponseWriter, r *http.Request) {
 		Username string `json:"username"`
 		Password string `json:"password"`
 	}
-	if !decode(w, r, &body) {
+	if !s.decode(w, r, &body) {
 		return
 	}
 	if len(body.Password) < 12 || len(body.Password) > 128 || len(body.Username) < 3 || len(body.Username) > 64 {
-		respond(w, 400, map[string]string{"error": "invalid_input"})
+		s.reject(w, r, 400, "invalid_input")
 		return
 	}
 	if !s.acquireAuth(w, r) {
@@ -194,7 +206,7 @@ func (s *Server) setup(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { <-s.authSlots }()
 	if err := s.store.Setup(r.Context(), body.Token, body.Username, body.Password, s.clock()); err != nil {
-		failure(w, err)
+		s.failure(w, r, err)
 		return
 	}
 	respond(w, 201, map[string]string{"status": "initialized"})
@@ -208,11 +220,11 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		Username string `json:"username"`
 		Password string `json:"password"`
 	}
-	if !decode(w, r, &body) {
+	if !s.decode(w, r, &body) {
 		return
 	}
 	if len(body.Password) > 128 || len(body.Username) > 64 {
-		respond(w, 400, map[string]string{"error": "invalid_input"})
+		s.reject(w, r, 400, "invalid_input")
 		return
 	}
 	if !s.acquireAuth(w, r) {
@@ -221,7 +233,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	defer func() { <-s.authSlots }()
 	session, err := s.store.Login(r.Context(), body.Username, body.Password, s.clock())
 	if err != nil {
-		failure(w, err)
+		s.failure(w, r, err)
 		return
 	}
 	http.SetCookie(w, &http.Cookie{Name: cookieName, Value: session.Token, Path: "/", Secure: true, HttpOnly: true, SameSite: http.SameSiteStrictMode, MaxAge: 12 * 60 * 60})
@@ -233,7 +245,7 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.store.Logout(r.Context(), sessionToken(r), r.Header.Get("X-CSRF-Token"), s.clock()); err != nil {
-		failure(w, err)
+		s.failure(w, r, err)
 		return
 	}
 	http.SetCookie(w, &http.Cookie{Name: cookieName, Path: "/", Secure: true, HttpOnly: true, SameSite: http.SameSiteStrictMode, MaxAge: -1})
@@ -243,7 +255,7 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 func (s *Server) identity(w http.ResponseWriter, r *http.Request) {
 	p, err := s.store.Identity(r.Context(), sessionToken(r), s.clock())
 	if err != nil {
-		failure(w, err)
+		s.failure(w, r, err)
 		return
 	}
 	respond(w, 200, map[string]any{"id": p.ID, "grants": p.Grants, "authorization_version": p.Version})
@@ -252,7 +264,7 @@ func (s *Server) identity(w http.ResponseWriter, r *http.Request) {
 func (s *Server) hosts(w http.ResponseWriter, r *http.Request) {
 	hosts, err := s.store.Hosts(r.Context(), sessionToken(r), s.clock())
 	if err != nil {
-		failure(w, err)
+		s.failure(w, r, err)
 		return
 	}
 	respond(w, 200, map[string]any{"items": hosts})
@@ -265,16 +277,16 @@ func (s *Server) createHost(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Name string `json:"name"`
 	}
-	if !decode(w, r, &body) {
+	if !s.decode(w, r, &body) {
 		return
 	}
 	if len(strings.TrimSpace(body.Name)) < 1 || len(body.Name) > 128 {
-		respond(w, 400, map[string]string{"error": "invalid_input"})
+		s.reject(w, r, 400, "invalid_input")
 		return
 	}
 	host, err := s.store.CreateHost(r.Context(), sessionToken(r), r.Header.Get("X-CSRF-Token"), body.Name, s.clock())
 	if err != nil {
-		failure(w, err)
+		s.failure(w, r, err)
 		return
 	}
 	respond(w, 201, host)
@@ -283,7 +295,7 @@ func (s *Server) createHost(w http.ResponseWriter, r *http.Request) {
 func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	events, err := s.store.Events(r.Context(), sessionToken(r), s.clock())
 	if err != nil {
-		failure(w, err)
+		s.failure(w, r, err)
 		return
 	}
 	respond(w, 200, map[string]any{"items": events})
