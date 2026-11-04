@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/sudatti624/AmuOS/internal/controlplane"
+	"github.com/sudatti624/AmuOS/internal/maintenance"
 	"github.com/sudatti624/AmuOS/internal/store"
 )
 
@@ -27,6 +29,14 @@ func run() error {
 	flag.Parse()
 	if *bootstrap == "" && (*cert == "" || *key == "") {
 		return errors.New("--tls-cert and --tls-key are required")
+	}
+	var certificate tls.Certificate
+	if *bootstrap == "" {
+		var err error
+		certificate, err = tls.LoadX509KeyPair(*cert, *key)
+		if err != nil {
+			return err
+		}
 	}
 	db, err := store.Open(*dbPath)
 	if err != nil {
@@ -60,11 +70,18 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	srv := &http.Server{Addr: *addr, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 * 1024, TLSConfig: &tls.Config{MinVersion: tls.VersionTLS13}}
+	srv := &http.Server{Addr: *addr, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 * 1024, TLSConfig: &tls.Config{MinVersion: tls.VersionTLS13, Certificates: []tls.Certificate{certificate}}}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	listener, err := net.Listen("tcp", *addr)
+	if err != nil {
+		return err
+	}
+	workerDone := make(chan struct{})
+	go func() { defer close(workerDone); _ = maintenance.Run(ctx, time.Minute, db.RunMaintenance) }()
+	defer func() { stop(); <-workerDone }()
 	done := make(chan error, 1)
-	go func() { done <- srv.ListenAndServeTLS(*cert, *key) }()
+	go func() { done <- srv.ServeTLS(listener, "", "") }()
 	slog.Info("control plane starting", "address", *addr)
 	select {
 	case err := <-done:

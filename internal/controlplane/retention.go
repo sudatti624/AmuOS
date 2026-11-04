@@ -16,7 +16,8 @@ func (s *Server) setAuditRetention(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Days *int `json:"retention_days"`
+		Days      *int  `json:"retention_days"`
+		Automatic *bool `json:"automatic_enabled"`
 	}
 	if !s.decode(w, r, &body) {
 		return
@@ -25,7 +26,7 @@ func (s *Server) setAuditRetention(w http.ResponseWriter, r *http.Request) {
 		s.reject(w, r, 400, "invalid_input")
 		return
 	}
-	if err := s.store.SetAuditRetention(r.Context(), sessionToken(r), r.Header.Get("X-CSRF-Token"), *body.Days, s.clock()); err != nil {
+	if err := s.store.SetAuditPolicy(r.Context(), sessionToken(r), r.Header.Get("X-CSRF-Token"), *body.Days, body.Automatic, s.clock()); err != nil {
 		s.failure(w, r, err)
 		return
 	}

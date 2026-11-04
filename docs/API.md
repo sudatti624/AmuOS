@@ -44,13 +44,17 @@ Origin・JSON・入力検証・CSRF・認証・認可・レート制限・認証
 
 | メソッド・パス | 本文・認可・結果 |
 |---|---|
-| GET /audit/retention | 全体audit.read。retention_daysを返す、200 |
-| PUT /audit/retention | retention_days（必須整数、1〜3650日）。再認証済みOwner・Origin・CSRF。200 |
+| GET /audit/retention | 全体audit.read。保持期間、自動実行の有効性、次回/最終実行、失敗件数・固定エラーコードを返す、200 |
+| PUT /audit/retention | retention_days（必須整数、1〜3650日）、automatic_enabled（任意bool）。再認証済みOwner・Origin・CSRF。200 |
 | POST /audit/retention/run | 本文は空のJSONオブジェクト `{}`。再認証済みOwner・Origin・CSRF。期限切れ削除を最大1000件実行し、結果を200で返す |
 
 既定保持期間は180日。削除対象は `at < 現在UTC時刻 - retention_days × 24時間` のイベントのみで、境界ちょうどのイベントは保持する。通常APIに任意の監査イベントの変更・個別削除機能は設けない。runの本文でIDや別の期限を指定することもできない。
 
-実行結果はretention_days、cutoff（Unix秒）、deleted_count、first_deleted_id、last_deleted_id、more_expiredを含む。期限切れが残る場合のみmore_expiredがtrueとなる。保持期間の変更だけでは削除しない。現在はOwnerが明示的に実行する専用処理で、自動スケジューラは未実装。
+実行結果はretention_days、cutoff（Unix秒）、deleted_count、first_deleted_id、last_deleted_id、more_expiredを含む。期限切れが残る場合のみmore_expiredがtrueとなる。
+
+自動実行は既定で有効。サーバーは起動後と毎分に実行予定を確認し、通常は1時間ごと、残件がある場合は1分後に最大1000件を処理する。Ownerがautomatic_enabledをfalseにすると停止する。保持日数や有効性を変更すると次の確認時に新しい設定を適用する。更新要求自体の中では削除しない。日次境界ではなくUTCの24時間単位で判定する。
+
+実行予定の取得、削除、監査、次回予定は同じDBトランザクションで確定する。再起動でも予定を保持し、同じ予定を二重実行しない。自動処理の主体はsystem。監査保存失敗では削除を戻し、固定エラーコードと失敗件数を状態に記録して5分後に再試行する。サーバー停止では処理をキャンセルし、DBを閉じる前にワーカーの終了を待つ。
 
 監査イベントにはdetailsオブジェクトを追加する。設定変更のbefore_days/after_days、削除の基準・件数・ID範囲・残件有無を記録し、設定更新/削除とそのイベントを同じトランザクションで確定する。監査保存に失敗した場合は削除も戻し、成功を返さない。既存イベントのdetailsは空オブジェクトとして移行する。
 
