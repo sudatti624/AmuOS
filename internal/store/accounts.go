@@ -166,15 +166,8 @@ func (s *Store) SetUserEnabled(ctx context.Context, token, csrf, targetID string
 			return err
 		}
 		if owner(target) {
-			if !p.Allows(rbac.OwnerManage, "") {
-				return ErrDenied
-			}
-			var recent sql.NullInt64
-			if err := tx.QueryRow("SELECT reauthenticated_at FROM sessions WHERE token_hash=?", security.Digest(token)).Scan(&recent); err != nil {
+			if err := requireRecentOwner(tx, p, token, now); err != nil {
 				return err
-			}
-			if !recent.Valid || now.Unix() < recent.Int64 || now.Unix()-recent.Int64 >= 300 {
-				return ErrDenied
 			}
 			if target.Enabled && !enabled {
 				var count int
@@ -187,6 +180,9 @@ func (s *Store) SetUserEnabled(ctx context.Context, token, csrf, targetID string
 			}
 		}
 		if _, err := tx.Exec("UPDATE users SET enabled=? WHERE id=?", enabled, targetID); err != nil {
+			return err
+		}
+		if err := bumpAuthorization(tx, []string{targetID}, now); err != nil {
 			return err
 		}
 		if !enabled {

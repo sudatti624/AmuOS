@@ -443,7 +443,7 @@ func TestMigrationPreservesExistingSession(t *testing.T) {
 		t.Fatalf("migration granted reauth: %v", err)
 	}
 	var version int
-	if err = s.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != 2 {
+	if err = s.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != len(migrationNames) {
 		t.Fatalf("version %d %v", version, err)
 	}
 }

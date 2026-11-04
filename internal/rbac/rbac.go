@@ -25,6 +25,7 @@ type Grant struct {
 type Principal struct {
 	ID      string
 	Enabled bool
+	Version int64
 	Grants  []Grant
 }
 

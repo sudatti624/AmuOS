@@ -27,7 +27,7 @@ var (
 //go:embed migrations/*.sql
 var migrations embed.FS
 
-var migrationNames = []string{"001_foundation.sql", "002_accounts.sql"}
+var migrationNames = []string{"001_foundation.sql", "002_accounts.sql", "003_authorization.sql"}
 
 type Store struct{ db *sql.DB }
 type Host struct {
@@ -212,7 +212,7 @@ func (s *Store) Setup(ctx context.Context, token, username, password string, now
 
 func principal(tx *sql.Tx, id string) (rbac.Principal, error) {
 	p := rbac.Principal{ID: id}
-	if err := tx.QueryRow("SELECT enabled FROM users WHERE id=?", id).Scan(&p.Enabled); err != nil {
+	if err := tx.QueryRow("SELECT enabled,authorization_version FROM users WHERE id=?", id).Scan(&p.Enabled, &p.Version); err != nil {
 		return p, err
 	}
 	rows, err := tx.Query(`SELECT role,all_hosts,coalesce(host_id,'') FROM grants WHERE user_id=? OR group_id IN (SELECT group_id FROM memberships WHERE user_id=?)`, id, id)

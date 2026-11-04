@@ -49,6 +49,13 @@ func New(db *store.Store, origin string) (http.Handler, error) {
 	r.Post("/api/v1/invitations", s.createInvitation)
 	r.Post("/api/v1/invitations/accept", s.acceptInvitation)
 	r.Delete("/api/v1/invitations/{id}", s.revokeInvitation)
+	r.Get("/api/v1/groups", s.groups)
+	r.Post("/api/v1/groups", s.createGroup)
+	r.Put("/api/v1/groups/{id}/members", s.setGroupMembers)
+	r.Put("/api/v1/groups/{id}/grants", s.setGroupGrants)
+	r.Delete("/api/v1/groups/{id}", s.deleteGroup)
+	r.Get("/api/v1/users/{id}/grants", s.userGrants)
+	r.Put("/api/v1/users/{id}/grants", s.setUserGrants)
 	r.Get("/api/v1/me", s.identity)
 	r.Get("/api/v1/hosts", s.hosts)
 	r.Post("/api/v1/hosts", s.createHost)
@@ -237,7 +244,7 @@ func (s *Server) identity(w http.ResponseWriter, r *http.Request) {
 		failure(w, err)
 		return
 	}
-	respond(w, 200, map[string]any{"id": p.ID, "grants": p.Grants})
+	respond(w, 200, map[string]any{"id": p.ID, "grants": p.Grants, "authorization_version": p.Version})
 }
 
 func (s *Server) hosts(w http.ResponseWriter, r *http.Request) {
