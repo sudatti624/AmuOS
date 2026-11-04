@@ -24,6 +24,8 @@ AmuOSの名前は「編む」から取りました。編み物は、一本一本
 |---|---|
 | 初回設定 | ローカルで発行する、有効期限10分・一回限りのトークンによるOwner作成 |
 | 認証 | Argon2idによるパスワード保護、ログイン・ログアウト、セッションの有効期限 |
+| アカウント | 期限付き招待の発行・受諾・取消、パスワード変更、ユーザー一覧・無効化・再有効化 |
+| Ownerの保護 | 状態変更時の再認証、最後の有効Ownerの無効化防止 |
 | リクエスト保護 | HTTPS必須、Secure Cookie、Origin・CSRF検証、認証入口の回数・並列数制限 |
 | RBAC | 固定ロールとユーザー・グループの範囲付き割当を評価する基盤、要求ごとの最新権限確認 |
 | ホスト | `pending` 状態のホストID確保と、閲覧権限のあるホストの一覧 |
@@ -146,6 +148,13 @@ Linux:
 | POST | `/api/v1/setup` | 初回Owner作成 |
 | POST | `/api/v1/auth/login` | ログイン |
 | POST | `/api/v1/auth/logout` | ログアウト |
+| POST | `/api/v1/auth/reauthenticate` | 現在のセッションの再認証 |
+| POST | `/api/v1/auth/password` | 本人のパスワード変更と全セッション失効 |
+| GET | `/api/v1/users` | 管理権限を持つユーザーによるアカウント一覧 |
+| PATCH | `/api/v1/users/{id}/enabled` | ユーザーの有効化・無効化 |
+| POST | `/api/v1/invitations` | 非Ownerの招待を発行 |
+| POST | `/api/v1/invitations/accept` | 招待を受諾してアカウントを作成 |
+| DELETE | `/api/v1/invitations/{id}` | 未使用招待を取消 |
 | GET | `/api/v1/me` | 自分のID・現在の権限割当 |
 | GET / POST | `/api/v1/hosts` | 認可済み一覧 / ホスト登録枠の確保 |
 | GET | `/api/v1/audit` | 認可された監査イベントの閲覧 |
@@ -166,10 +175,6 @@ Linux:
 | [テスト](docs/TESTING.md) | 検証計画・合格基準 |
 | [OSS調査](docs/OSS_RESEARCH.md) | 上流資料と採用判断 |
 | [貢献の手順](CONTRIBUTING.md) | Issue・プルリクエスト・開発ルール |
-
-## AIの利用について
-
-AmuOSは、AIによるコーディング支援を活用しながら開発しています。AIが書いたコードや文書をそのまま正しいものとは扱わず、テストと検証を通してから取り込むよう心がけています。それでも誤りや不自然な点が残っているかもしれません。お気づきの点があれば、Issueでお知らせいただけると助かります。
 
 ## 貢献
 

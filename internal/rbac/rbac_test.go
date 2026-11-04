@@ -42,3 +42,19 @@ func TestOwnerConstraints(t *testing.T) {
 		t.Fatal("undefined action allowed")
 	}
 }
+
+func TestDelegationPreservesOperationAndScope(t *testing.T) {
+	p := Principal{Enabled: true, Grants: []Grant{{Role: Admin, HostID: "a"}, {Role: Viewer, HostID: "b"}}}
+	for _, tt := range []struct {
+		grant Grant
+		want  bool
+	}{
+		{Grant{Role: Admin, HostID: "a"}, true}, {Grant{Role: Viewer, HostID: "b"}, true},
+		{Grant{Role: Admin, HostID: "b"}, false}, {Grant{Role: Viewer, All: true}, false},
+		{Grant{Role: Owner, All: true}, false}, {Grant{Role: Viewer}, false}, {Grant{Role: Viewer, All: true, HostID: "a"}, false},
+	} {
+		if got := p.CanDelegate(tt.grant); got != tt.want {
+			t.Errorf("%+v: got %v want %v", tt.grant, got, tt.want)
+		}
+	}
+}

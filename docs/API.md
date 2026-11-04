@@ -1,4 +1,4 @@
-# API契約（実装済みの最初の単位）
+# API契約
 
 基準: 仕様v0.4 §10、§12。HTTPS JSON、ルート `/api/v1`。秘密値をクエリパラメーターに含めない。
 
@@ -22,10 +22,44 @@
 | 400 | invalid_input / invalid_json |
 | 401 | unauthorized（未認証・無効・期限切れを区別しない） |
 | 403 | forbidden / origin_rejected |
-| 409 | conflict（初期化済み） |
+| 404 | not_found（アカウント・招待管理の対象不存在） |
+| 409 | conflict（初期化済み、既存ユーザー名、使用済み招待、最後の有効Ownerの無効化など） |
 | 415 | json_required |
 | 429 | rate_limited、Retry-After付き |
 | 500 | internal_error（DB・監査等の詳細を外部へ公開しない） |
 | 503 | auth_busy、Retry-After付き |
 
-セッション認証と最新割当の取得・状態更新・監査は同じトランザクション。Origin/JSON形式の不正はDB処理前に拒否する。これらHTTP入口での拒否とレート制限の監査連携は未実装。招待・グループ変更・ロール割当・Owner移譲・ホスト削除・Agent・タスク・バックアップAPIは未公開。作成APIの永続冪等キーも未実装であり、結果不明時は自動再送しない。
+セッション認証と最新割当の取得・状態更新・監査は同じトランザクション。Origin/JSON形式の不正はDB処理前に拒否する。これらHTTP入口での拒否とレート制限の監査連携は未実装。グループ変更・既存ロール割当の編集・Owner移譲・ホスト削除・Agent・タスク・バックアップAPIは未公開。作成APIの永続冪等キーも未実装であり、結果不明時は自動再送しない。
+
+## アカウント管理の契約
+
+仕様§10.3〜10.5に従う追加API。実装と検証の到達状況はPROGRESS.mdに記録する。
+
+| メソッド・パス | 入力 | 認可・結果 |
+|---|---|---|
+| POST /auth/reauthenticate | password | 有効セッション・CSRF・現在のパスワード。成功時にセッションへ再認証時刻を記録、200 |
+| POST /auth/password | current_password, new_password | 本人の現在パスワード・有効セッション・CSRF。変更後は本人の全セッションを失効し、200 |
+| GET /users | Cookie | 全体identity.manage。id・username・enabledのみ、200 |
+| PATCH /users/{id}/enabled | enabled（必須bool） | 非Owner対象は全体identity.manage。Owner対象はOwner専用かつ直近5分以内の再認証。最後の有効Ownerの無効化は409 |
+| POST /invitations | username, grants | 全体identity.manage・CSRF。非Ownerの範囲付き固定ロールのみ。id・token・username・expires_atを201で一度返す |
+| POST /invitations/accept | token, password | セッション不要、Origin一致・認証入口の回数制限。招待で指定された名前と割当でアカウントを作成、201。自動ログインしない |
+| DELETE /invitations/{id} | CSRF | 全体identity.manage。取消のみ、204。不存在は404、使用済みは409 |
+
+すべての変更要求で設定値に一致するOriginを要求する。招待受諾以外は有効セッションとCSRFが必要。パスワード検証を伴う経路は認証入口の回数・並列数制限も適用する。
+
+招待は32バイト乱数、有効期限24時間、一回限り。DBにはハッシュだけを保存する。usernameは発行時に固定し、既存ユーザーへの発行は409。同じ名前へ再発行すると以前の未使用招待を取り消す。最大32個の割当を保存し、範囲はall_hostsまたは単一host_idで表現する。Owner招待は許可しない。発行者の権限の部分集合であることを発行時と受諾時に確認し、受諾者が名前・ロール・範囲を変更する入力は受け付けない。
+
+招待発行の本文例（host_idは既存のホストIDに置き換える）：
+
+```json
+{
+  "username": "member",
+  "grants": [{"role": "Viewer", "all_hosts": false, "host_id": "<host-id>"}]
+}
+```
+
+全体範囲は `"all_hosts": true` としてhost_idを省略する。これは将来追加されるホストにも適用される。招待受諾の本文はtoken・passwordのみ。トークンはURLに含めず、安全な経路で本人へ渡す。
+
+受諾時に期限切れ・使用済み・取消済み・発行者無効・発行者の権限不足・対象ホスト削除が判明した招待は拒否する。無効化された発行者の未使用招待も取り消す。無効トークンの理由やユーザー名は応答に含めず401を返す。正常な招待とユーザー・割当・監査の保存は一つのトランザクションで行う。
+
+再認証は通常ログインと別の操作とし、他のセッションには引き継がない。再認証から5分以上経過・時刻逆行は403。非OwnerがOwner状態を変更しようとした場合は403、対象IDの不存在は認証・全体権限確認後に404。無効化時は対象の全セッションを削除し、再有効化しても復活させない。Ownerの追加・解除・移譲APIはまだ提供しない。

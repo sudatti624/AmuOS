@@ -42,6 +42,13 @@ func New(db *store.Store, origin string) (http.Handler, error) {
 	r.Post("/api/v1/setup", s.setup)
 	r.Post("/api/v1/auth/login", s.login)
 	r.Post("/api/v1/auth/logout", s.logout)
+	r.Post("/api/v1/auth/reauthenticate", s.reauthenticate)
+	r.Post("/api/v1/auth/password", s.changePassword)
+	r.Get("/api/v1/users", s.users)
+	r.Patch("/api/v1/users/{id}/enabled", s.setUserEnabled)
+	r.Post("/api/v1/invitations", s.createInvitation)
+	r.Post("/api/v1/invitations/accept", s.acceptInvitation)
+	r.Delete("/api/v1/invitations/{id}", s.revokeInvitation)
 	r.Get("/api/v1/me", s.identity)
 	r.Get("/api/v1/hosts", s.hosts)
 	r.Post("/api/v1/hosts", s.createHost)
@@ -77,6 +84,8 @@ func failure(w http.ResponseWriter, err error) {
 		status, code = 409, "conflict"
 	case errors.Is(err, store.ErrInput):
 		status, code = 400, "invalid_input"
+	case errors.Is(err, store.ErrNotFound):
+		status, code = 404, "not_found"
 	}
 	respond(w, status, map[string]string{"error": code})
 }

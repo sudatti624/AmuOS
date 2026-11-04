@@ -28,6 +28,24 @@ type Principal struct {
 	Grants  []Grant
 }
 
+// CanDelegate checks the requested grant as one scope, without combining a
+// role from one scope with the resource scope of another grant.
+func (p Principal) CanDelegate(g Grant) bool {
+	if g.Role != Admin && g.Role != Operator && g.Role != Viewer {
+		return false
+	}
+	if (g.All && g.HostID != "") || (!g.All && g.HostID == "") {
+		return false
+	}
+	requested := Principal{Enabled: true, Grants: []Grant{g}}
+	for _, action := range []Action{HostRead, HostManage, Collect, AuditRead, IdentityManage} {
+		if requested.Allows(action, g.HostID) && !p.Allows(action, g.HostID) {
+			return false
+		}
+	}
+	return p.Enabled
+}
+
 func (p Principal) Allows(action Action, hostID string) bool {
 	if !p.Enabled {
 		return false

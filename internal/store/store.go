@@ -3,7 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
-	_ "embed"
+	"embed"
 	"errors"
 	"fmt"
 	"os"
@@ -21,10 +21,13 @@ var (
 	ErrCredentials = errors.New("invalid credentials")
 	ErrConflict    = errors.New("conflict")
 	ErrInput       = errors.New("invalid input")
+	ErrNotFound    = errors.New("not found")
 )
 
-//go:embed migrations/001_foundation.sql
-var schema string
+//go:embed migrations/*.sql
+var migrations embed.FS
+
+var migrationNames = []string{"001_foundation.sql", "002_accounts.sql"}
 
 type Store struct{ db *sql.DB }
 type Host struct {
@@ -77,16 +80,29 @@ func Open(path string) (*Store, error) {
 	if err := db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
 		return fail(err)
 	}
-	if version > 1 {
+	if version < 0 {
+		return fail(errors.New("invalid database schema version"))
+	}
+	if version > len(migrationNames) {
 		return fail(errors.New("database schema is newer than this binary"))
 	}
-	if version == 0 {
+	if version < len(migrationNames) {
 		tx, err := db.Begin()
 		if err != nil {
 			return fail(err)
 		}
-		if _, err = tx.Exec(schema); err == nil {
-			_, err = tx.Exec("PRAGMA user_version=1")
+		for i := version; i < len(migrationNames); i++ {
+			contents, readErr := migrations.ReadFile("migrations/" + migrationNames[i])
+			if readErr != nil {
+				err = readErr
+				break
+			}
+			if _, err = tx.Exec(string(contents)); err != nil {
+				break
+			}
+			if _, err = tx.Exec(fmt.Sprintf("PRAGMA user_version=%d", i+1)); err != nil {
+				break
+			}
 		}
 		if err != nil {
 			_ = tx.Rollback()
@@ -264,7 +280,7 @@ func (s *Store) Login(ctx context.Context, username, password string, now time.T
 		if _, err := tx.Exec("DELETE FROM sessions WHERE expires_at<=? OR last_seen<=?", now.Unix(), now.Add(-30*time.Minute).Unix()); err != nil {
 			return err
 		}
-		if _, err := tx.Exec("INSERT INTO sessions VALUES(?,?,?,?,?,?)", security.Digest(result.Token), security.Digest(result.CSRF), result.UserID, now.Unix(), now.Unix(), now.Add(12*time.Hour).Unix()); err != nil {
+		if _, err := tx.Exec("INSERT INTO sessions(token_hash,csrf_hash,user_id,created_at,last_seen,expires_at) VALUES(?,?,?,?,?,?)", security.Digest(result.Token), security.Digest(result.CSRF), result.UserID, now.Unix(), now.Unix(), now.Add(12*time.Hour).Unix()); err != nil {
 			return err
 		}
 		return audit(tx, now, result.UserID, "auth.login", result.UserID, "", "success", "")
