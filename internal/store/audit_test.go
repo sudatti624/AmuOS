@@ -72,3 +72,13 @@ func TestHTTPRejectionDoesNotRefreshSession(t *testing.T) {
 		t.Fatal("credential leaked to audit")
 	}
 }
+
+func TestCorruptAuditDetailsAreRejected(t *testing.T) {
+	s, owner, _ := prepared(t)
+	if _, err := s.db.Exec("UPDATE audit_events SET details='invalid-json' WHERE action='setup.complete'"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Events(context.Background(), owner.Token, testTime); err == nil {
+		t.Fatal("corrupt audit JSON returned as successful response")
+	}
+}

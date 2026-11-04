@@ -11,3 +11,7 @@
 | SQLite | https://sqlite.org/backup.html — 稼働中ファイルの単純コピーを避けるバックアップ契約 |
 
 実際の採用版はgo.mod/go.sum。全依存のライセンスはMIT/BSD-3-ClauseでApache-2.0と両立する。バージョン更新時の既知脆弱性確認と、バイナリ配布時のライセンス同梱は未完了。Docker・ファイル管理・仮想化のOSS調査は各機能の着手前に行う。
+
+## バックアップ形式の設計調査（順序0）
+
+順序4の実装候補をage v1形式、filippo.io/age v1.3.2、X25519 recipientに固定する。一次資料は[形式仕様](https://age-encryption.org/v1)、[v1.3.2](https://github.com/FiloSottile/age/releases/tag/v1.3.2)、[ライセンス](https://github.com/FiloSottile/age/blob/v1.3.2/LICENSE)。ライセンスはBSD-3-Clause。分割されたペイロードの認証と最終チャンク検証を利用し、独自のストリーム暗号方式を実装しない。まだgo.modへ追加・バイナリへ同梱していない。導入時には同版と推移依存の脆弱性・ライセンスを再確認し、配布時の表記を同梱する。

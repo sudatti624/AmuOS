@@ -456,6 +456,9 @@ func (s *Store) Events(ctx context.Context, token string, now time.Time) ([]Even
 			}
 			e.Details = json.RawMessage(details)
 			if p.Allows(rbac.AuditRead, e.HostID) {
+				if !json.Valid(e.Details) {
+					return errors.New("invalid stored audit details")
+				}
 				events = append(events, e)
 				if len(events) == 100 {
 					break

@@ -44,15 +44,19 @@ Ownerの状態変更前には `POST /api/v1/auth/reauthenticate` で現在のパ
 
 Owner割当は `PUT /api/v1/users/{id}/owner`、移譲は `POST /api/v1/ownership/transfer` を使用する。移譲元は全体Adminとなり、移譲先はOwnerとなる。変更対象の全セッションが失効するため、両者はログインし直す。移譲先は有効な既存ユーザーに限る。
 
-新しいバイナリの起動時に既存のスキーマv1〜v4をv5へ自動移行する。失敗時は版とスキーマ変更を戻す。移行後のDBに旧バイナリだけを戻す更新手順は提供しない。
+新しいバイナリの起動時に既存のスキーマv1〜v6をv7へ自動移行する。失敗時は版とスキーマ変更を戻す。移行後のDBに旧バイナリだけを戻す更新手順は提供しない。
+
+`POST /api/v1/hosts` はIdempotency-Keyが必須。操作ごとに乱数キーを作り、応答を失ったときは同じキー・同じnameで再要求する。再取得にはIdempotency-Replayed: trueが付く。別入力・期限切れの409でキーを勝手に取り替えて自動再作成しない。
 
 ## 監査ログの照会と保持
 
 応答のX-Request-IDで操作と監査イベントを関連付けられる。HTTP拒否も記録されるが、本文やCookie、実際のURL内IDなどの秘密値は記録しない。audit_unavailableが返った場合は監査保存障害を示す。サーバーログには照合用のリクエストIDを出し、内部DBエラーを利用者へそのまま返さない。
 
-保持期間は `GET /api/v1/audit/retention` で確認する。既定は180日。変更はOwnerが再認証した後、`PUT /api/v1/audit/retention` に `{"retention_days":180}` の形式で送信する。設定変更だけで過去のイベントを削除することはない。
+保持期間と自動処理の状態は `GET /api/v1/audit/retention` で確認する。既定180日・自動有効。変更はOwnerが再認証した後、`PUT /api/v1/audit/retention` に `{"retention_days":180,"automatic_enabled":true}` の形式で送信する。falseで自動処理を停止する。設定変更の要求自体では削除せず、次の定期確認から新しい設定を適用する。
 
-期限切れの削除は、再認証済みOwnerが `POST /api/v1/audit/retention/run` へ空のJSONオブジェクト `{}` を送って実行する。1回最大1000件。応答のmore_expiredで残件有無を確認し、追加実行する場合も結果を確認してから行う。変更と削除のすべてにOrigin・CSRFが必要。自動実行や任意IDの個別削除は提供しない。
+自動処理は起動後と毎分に予定を確認し、通常1時間・残件1分・失敗5分の間隔で最大1000件を処理する。状態のlast_run_at・next_run_at・failure_count・last_error_codeで実行と障害を確認できる。機密値を含み得る低水準エラーは状態に保存しない。
+
+手動削除は再認証済みOwnerが `POST /api/v1/audit/retention/run` へ `{}` を送って実行する。1回最大1000件。応答のmore_expiredで残件有無を確認し、追加実行する場合も結果を確認してから行う。手動の変更と削除にはOrigin・CSRFが必要。任意IDの個別削除は提供しない。
 
 ## 未提供の運用手順
 
