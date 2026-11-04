@@ -1,210 +1,148 @@
-# AmuOS
+<div align="center">
 
-[![Test foundation](https://github.com/sudatti624/AmuOS/actions/workflows/test.yml/badge.svg)](https://github.com/sudatti624/AmuOS/actions/workflows/test.yml)
-[![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+<img src="web/public/favicon.svg" alt="" width="72" height="72">
+
+# AmuOS
 
 **散らばった機能を、一枚に編む。**
 
-AmuOSは、既存のLinuxにインストールして使う、小さなサーバー管理基盤をつくろうとしているオープンソースのプロジェクトです。複数ホストの情報や監視データを、一つのURL・認証・管理画面でまとめて扱えるようにしたいと考えています。
+既存のLinuxに入れて使う、小さなセルフホスト型のサーバー管理基盤
 
-まだ開発を始めたばかりで、いまあるのは**Go製Control Planeの認証・RBAC・監査の土台**と、それを操作する最初のWeb画面です。Agentや監視はまだありません。至らない点も多いと思いますが、少しずつ育てていければと思っています。
+[![Test foundation](https://github.com/sudatti624/AmuOS/actions/workflows/test.yml/badge.svg)](https://github.com/sudatti624/AmuOS/actions/workflows/test.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+![Status: early development](https://img.shields.io/badge/status-early_development-orange)
+
+</div>
+
+AmuOSは、複数のLinuxホストの情報や監視データを、一つのURL・一つのログイン・一つの管理画面でまとめて扱えるようにすることを目指すオープンソースのプロジェクトです。
+
+まだ開発を始めたばかりで、いまあるのは認証・権限管理・監査の土台と、それを操作する最初のWeb画面です。至らない点も多いと思いますが、少しずつ育てていければと思っています。
+
+*A small, self-hosted server management platform for existing Linux hosts. Early development — currently authentication, RBAC, audit logging and a first web UI, written in Go and React.*
+
+<p align="center">
+  <img src="docs/images/overview.png" alt="AmuOSの概要画面" width="800">
+</p>
 
 > [!WARNING]
 > 開発途中のソフトウェアです。APIやデータ形式は予告なく変わることがあります。本番環境やインターネットに公開された環境での利用はお控えください。
 
-仕様の詳細は [設計仕様書 v0.4](docs/SPECIFICATION.md) にまとめています。
+## 目次
 
-## 名前について
-
-AmuOSの名前は「編む」から取りました。編み物は、一本一本の糸を編み込むことで一枚の布になります。サーバー、アプリ、監視、権限など、ばらばらになりがちな管理の機能を、少しずつ編み合わせていけたら、という思いを込めています。
+- [いまできること](#いまできること)
+- [はじめかた](#はじめかた)
+- [開発](#開発)
+- [構成](#構成)
+- [ロードマップ](#ロードマップ)
+- [ドキュメント](#ドキュメント)
+- [AIの利用について](#aiの利用について)
+- [貢献](#貢献)
+- [ライセンス](#ライセンス)
 
 ## いまできること
 
-| 分野 | 実装済みの範囲 |
-|---|---|
-| 初回設定 | ローカルで発行する、有効期限10分・一回限りのトークンによるOwner作成 |
-| 認証 | Argon2idによるパスワード保護、ログイン・ログアウト、セッションの有効期限 |
-| アカウント | 期限付き招待の発行・受諾・取消、パスワード変更、ユーザー一覧・無効化・再有効化 |
-| Ownerの管理 | 再認証付きの追加・解除・移譲、最後の有効Ownerの解除・無効化防止 |
-| リクエスト保護 | HTTPS必須、Secure Cookie、Origin・CSRF検証、認証入口の回数・並列数制限 |
-| RBAC | 固定ロールとユーザー・グループの範囲付き割当を評価する基盤、要求ごとの最新権限確認 |
-| グループ管理 | グループの作成・削除、所属・固定割当・非Ownerの直接割当の編集 |
-| ホスト | `pending` 状態のホストID確保と、閲覧権限のあるホストの一覧 |
-| 監査 | 変更前後の要約、HTTP拒否とリクエストID、自動保持と原子的な削除監査、Ownerによる設定・手動実行 |
-| 重複作成防止 | ホスト登録枠の冪等キーと結果を永続化し、通信断・再起動後の同一要求でも重複を防止 |
-| 永続化 | SQLite、バージョン付きスキーマ適用 |
-| Web画面 | 初回設定、ログイン、招待の受け取り、ユーザー・グループ・ロール・オーナーの管理、ホスト登録枠、アクティビティ、パスワード変更・監査ログ保持の設定。日本語表示、ダーク/ライトテーマ |
+- **アカウントと権限**
+  - 初回設定（ローカルで発行する10分・1回限りのトークン）でオーナーを作成
+  - 期限付きの招待、パスワード変更、ユーザーの無効化と再有効化
+  - Owner / Admin / Operator / Viewer の固定ロールを、全ホストまたはホスト単位で割り当て（ユーザーへ直接、またはグループ経由）
+  - 権限の変更は、ログイン中のセッションにも次の操作から反映
+  - オーナーの追加・解除・移譲は、パスワードの再確認つき。最後のオーナーは外せません
+- **監査ログ**：重要な操作と拒否された要求を、変更前後の要約とリクエストIDつきで記録。保持期間を設定でき、期限切れのログは自動で削除
+- **ホスト**：ホストの登録枠（ID）の確保と一覧。通信が切れて再送しても重複して作られません
+- **Web画面**：日本語表示、ダーク/ライトテーマ、スマートフォンの幅にも対応
+- **安全のための基本**：HTTPS必須、Argon2idによるパスワード保護、Origin・CSRFの検証、ログイン試行の回数制限、厳格なContent Security Policy
 
-ホストIDの確保はAgent登録を意味せず、実ホストの情報・監視値はまだ取得しません。
+**まだできないこと**：Agentによるホスト情報の取得、監視とグラフ、タスク、バックアップと復元、systemdでの常駐、Linuxへの導入手順の検証。Docker・アプリのデプロイ・ファイル管理・VM管理は、基盤が安定してから取り組む予定です。
 
-## 初期リリースの方針
+## はじめかた
 
-Phase 1・2の基本機能に絞り、次を優先します。
-
-- 認証・RBAC・ユーザー管理
-- Agentの安全な登録、相互認証、資格情報の更新・失効
-- ホスト情報・リソース監視・履歴
-- 監査ログと基盤タスクの状態管理
-- 導入手順、整合性のあるバックアップ・復元、認可テスト、主要画面のE2Eテスト
-
-Agent、監視、バックアップ・復元、基盤タスクは今後の実装対象です。Web画面も、機能の追加に合わせて広げていきます。Docker管理、アプリケーションのデプロイ、ファイル管理、VM管理、systemdの変更操作は、基盤の安定性とセキュリティを検証した後のPhaseで扱います。
-
-## 構成と技術
-
-Control Planeが認証・認可・データ保存を担当し、各Linuxホストに配置するAgentが外向きに接続する構成です。
-
-| 層 | 技術・状態 |
-|---|---|
-| Control Plane | Go 1.27系、chi v5、SQLite、slog |
-| 認証 | golang.org/x/crypto/argon2、サーバー側セッション |
-| Agent | Go、mTLS。未実装 |
-| Web UI | React、TypeScript、Vite+、Tailwind CSS v4、shadcn/uiの方式によるコンポーネント。ビルド結果をControl Planeに組み込み、同じURLで配信 |
-| 検証 | Go testing、HTTP・SQLite統合テスト、Vitest（Vite+）、Playwrightによる主要画面のE2E |
-
-依存バージョンは [go.mod](go.mod)・[go.sum](go.sum)・[web/pnpm-lock.yaml](web/pnpm-lock.yaml) に固定しています。sqlc・gooseの統合は未完了です。
-
-## 開発環境とビルド
-
-Go 1.27系、Node.js 24系、pnpm 12系と、依存パッケージを取得できるネットワーク環境が必要です。
-
-Web画面はControl Planeのバイナリに組み込まれるため、先に画面をビルドします。画面をビルドせずにGoだけをビルドした場合も起動はできますが、画面の代わりに案内文が表示されます。
+いまはリリース版の配布がないため、ソースからビルドします。必要なものは Go 1.27系、Node.js 24系、pnpm 12系です。
 
 ```sh
-cd web
-pnpm install
-pnpm exec vp check   # 整形・lint・型チェック
-pnpm exec vp test    # 単体テスト
-pnpm exec vp build   # internal/webui/static/app に出力
-cd ..
+git clone https://github.com/sudatti624/AmuOS.git
+cd AmuOS
+
+# 1. Web画面をビルド（Goのバイナリに組み込まれるので、先にビルドします）
+cd web && pnpm install && pnpm exec vp build && cd ..
+
+# 2. Control Planeをビルド
+go build -o dist/controlplane ./cmd/controlplane
+
+# 3. 初回設定トークンを発行（data/setup-token に保存され、10分間有効）
+mkdir -m 700 data
+./dist/controlplane --db data/amuos.db --bootstrap-file data/setup-token
+
+# 4. HTTPSで起動（証明書と秘密鍵は事前に用意します）
+./dist/controlplane --db data/amuos.db \
+  --addr 127.0.0.1:8443 --origin https://localhost:8443 \
+  --tls-cert data/server.pem --tls-key data/server-key.pem
 ```
 
-続いてリポジトリ直下でGoのテストとビルドを行います。
+ブラウザで `https://localhost:8443/setup` を開き、手順3のトークンと、オーナーのユーザー名・パスワードを入力します。作成できたら、トークンのファイルを削除してログインしてください。ほかのユーザーは「ユーザーとグループ」の「招待」から招待できます。
+
+- 証明書は、接続先の名前に合い、利用する端末が信頼できるものを使ってください。TLSの証明書と鍵がないと起動しません。
+- `--origin` は、ブラウザで開くURLのOrigin（末尾の `/` なし）と完全に一致させます。
+- Windowsでの手順や詳しい運用は [運用手順](docs/OPERATIONS.md) にあります。APIを直接使う場合は [API契約](docs/API.md) を参照してください。
+
+## 開発
 
 ```sh
-go mod download
+# Web画面（web/ で実行）
+pnpm exec vp check     # 整形・lint・型チェック
+pnpm exec vp test      # 単体テスト
+pnpm exec vp build
+
+# Control Plane（リポジトリ直下で実行）
 go test ./...
 go vet ./...
+
+# ブラウザでのE2Eテスト（ビルド済みのバイナリを使います）
+go build -o dist/controlplane ./cmd/controlplane
+go build -o dist/devcert ./scripts/devcert    # テスト専用の自己署名証明書ツール
+cd web && pnpm exec playwright install chromium && pnpm exec playwright test
 ```
 
-Windows / PowerShell:
+E2Eテストは、テストごとに新しいデータベースと証明書でControl Planeを起動し、初回設定から権限の変更、APIを直接呼んだときの拒否までを確認します。開発の進め方は [CONTRIBUTING.md](CONTRIBUTING.md) にまとめています。
 
-```powershell
-go build -o dist/controlplane.exe ./cmd/controlplane
-```
+## 構成
 
-Linux:
+Control Planeが認証・認可・データの保存を担当し、将来は各Linuxホストに置くAgentがControl Planeへ外向きに接続する構成です。Web画面はControl Planeのバイナリに組み込まれ、同じURLで配信されます。
 
-```sh
-CGO_ENABLED=0 go build -o dist/controlplane ./cmd/controlplane
-```
+| 部分 | 技術 |
+|---|---|
+| Control Plane | Go 1.27、chi、SQLite（modernc.org/sqlite）、Argon2id |
+| Web UI | React、TypeScript、Vite+、Tailwind CSS v4、Radixベースの部品（shadcn/uiの方式） |
+| テスト | Go testing、Vitest、Playwright |
+| Agent | Go、mTLS（未実装） |
 
-初期検証対象はLinux amd64のUbuntu Server 24.04 LTS・Debian 13です。現在確認済みなのはWindowsでのGoテスト・静的解析、Windows / Linux amd64向けビルド、WindowsでのE2Eテストです。Linuxでの導入・運用検証は未完了です。
+対象環境はLinux amd64（Ubuntu Server 24.04 LTS・Debian 13）です。いまのところ動作を確認しているのはWindows上でのテストとビルドで、Linuxでの導入・運用の検証はこれからです。
 
-ブラウザでのE2Eテストは、ビルド済みのバイナリを使って実行します（テスト用の自己署名証明書を作るため、`devcert` もビルドします）。
+## ロードマップ
 
-```sh
-go build -o dist/controlplane ./cmd/controlplane   # Windowsは dist/controlplane.exe
-go build -o dist/devcert ./scripts/devcert           # Windowsは dist/devcert.exe
-cd web
-pnpm exec playwright install chromium
-pnpm exec playwright test
-```
+| 版 | 目安 |
+|---|---|
+| v0.1 | 画面からユーザーと権限を管理でき、Ubuntu Server / Debian に手順どおり導入して試せる |
+| v0.2 | Agentを登録し、ホストの情報・監視値・履歴を画面で確認できる |
+| v0.3 | systemdでの常駐、バックアップと復元、再インストールなしの更新 |
+| v1.0 | 初期リリースの条件（独立環境での復元、認可の総合検証、24時間の連続運転など）をすべて満たす |
 
-作業用Goを `.tools/` に配置した環境の設定は [開発時の起動・運用](docs/OPERATIONS.md) を参照してください。開発ツール自体はリポジトリに含みません。
-
-## 初回設定と起動
-
-### 1. TLS証明書を用意する
-
-接続先名に合い、利用端末から信頼されるサーバー証明書と秘密鍵を用意します。以下は `data/server.pem` と `data/server-key.pem` に配置した例です。TLS証明書・鍵を指定しないとサーバーは起動しません。
-
-`data/` は事前に作成してください。Linuxでは `mkdir -m 700 data` のように所有者のみがアクセスできる権限にします。`data/` はGitの管理対象外です。
-
-### 2. 初回設定トークンを発行する
-
-Windows / PowerShell:
-
-```powershell
-./dist/controlplane.exe --db data/amuos.db --bootstrap-file data/setup-token
-```
-
-Linux:
-
-```sh
-./dist/controlplane --db data/amuos.db --bootstrap-file data/setup-token
-```
-
-このコマンドはトークンを指定ファイルに保存し、終了します。有効期限は10分で、未初期化DBに対してのみ実行できます。保存先が既存の場合は上書きしません。トークン・秘密鍵・DBはアクセス権を制限して保管してください。
-
-### 3. HTTPSサーバーを起動する
-
-Windows / PowerShell:
-
-```powershell
-./dist/controlplane.exe --db data/amuos.db --addr 127.0.0.1:8443 --origin https://localhost:8443 --tls-cert data/server.pem --tls-key data/server-key.pem
-```
-
-Linux:
-
-```sh
-./dist/controlplane --db data/amuos.db --addr 127.0.0.1:8443 --origin https://localhost:8443 --tls-cert data/server.pem --tls-key data/server-key.pem
-```
-
-デフォルトの待受先は `127.0.0.1:8443` です。`--origin` は利用するHTTPSのOriginに一致させ、末尾の `/` やパスを付けません。
-
-### 4. 画面でオーナーを作成する
-
-ブラウザで `https://localhost:8443/setup` を開き、手順2で保存したトークン、ユーザー名、パスワードを入力します。作成できたらトークンファイルを削除し、ログイン画面からログインしてください。ほかのユーザーは「ユーザーとグループ」の「招待」から招待できます。
-
-APIを直接使う場合は、`POST /api/v1/setup` に `Origin` ヘッダーを付けて `token`・`username`・`password` をJSONで送ります。ログイン後の変更要求には、ログイン応答の `csrf_token` を `X-CSRF-Token` として付けます。詳細は [API契約](docs/API.md) を参照してください。
-
-## 主なAPI
-
-| メソッド | パス | 用途 |
-|---|---|---|
-| GET | `/healthz` | プロセスの生存確認 |
-| POST | `/api/v1/setup` | 初回Owner作成 |
-| POST | `/api/v1/auth/login` | ログイン |
-| POST | `/api/v1/auth/logout` | ログアウト |
-| POST | `/api/v1/auth/reauthenticate` | 現在のセッションの再認証 |
-| POST | `/api/v1/auth/password` | 本人のパスワード変更と全セッション失効 |
-| GET | `/api/v1/users` | 管理権限を持つユーザーによるアカウント一覧 |
-| PATCH | `/api/v1/users/{id}/enabled` | ユーザーの有効化・無効化 |
-| GET / POST | `/api/v1/groups` | グループ一覧 / 作成 |
-| PUT | `/api/v1/groups/{id}/members` | グループ所属の置換 |
-| PUT | `/api/v1/groups/{id}/grants` | グループの固定割当の置換 |
-| DELETE | `/api/v1/groups/{id}` | グループの削除 |
-| GET / PUT | `/api/v1/users/{id}/grants` | 直接割当の参照 / 非Owner割当の置換 |
-| PUT | `/api/v1/users/{id}/owner` | Owner割当の追加・解除 |
-| POST | `/api/v1/ownership/transfer` | Ownerの移譲 |
-| POST | `/api/v1/invitations` | 非Ownerの招待を発行 |
-| POST | `/api/v1/invitations/accept` | 招待を受諾してアカウントを作成 |
-| DELETE | `/api/v1/invitations/{id}` | 未使用招待を取消 |
-| GET | `/api/v1/me` | 自分のID・現在の権限割当 |
-| GET / POST | `/api/v1/hosts` | 認可済み一覧 / ホスト登録枠の確保 |
-| GET | `/api/v1/audit` | 認可された監査イベントの閲覧 |
-| GET / PUT | `/api/v1/audit/retention` | 保持期間の参照 / 再認証済みOwnerによる設定 |
-| POST | `/api/v1/audit/retention/run` | 再認証済みOwnerによる期限切れログの手動削除（最大1000件） |
-
-`/healthz` 以外の認証・認可条件、入力制約、エラーは [API契約](docs/API.md) に記載しています。Web画面のページ（`/`、`/login` など）と `/assets/` 配下のファイルは、認証なしで配信されます。中身はデータを含まない画面の部品で、データの取得と操作はすべて上記のAPIで認可されます。
+詳しくは [開発計画](docs/PLAN.md) と [設計仕様書](docs/SPECIFICATION.md) をご覧ください。
 
 ## ドキュメント
 
 | 資料 | 内容 |
 |---|---|
-| [設計仕様書](docs/SPECIFICATION.md) | 製品仕様の基準、初期リリース範囲、各Phaseの完了条件 |
-| [アーキテクチャ](docs/ARCHITECTURE.md) | 構成・データモデル・信頼境界 |
-| [基盤の設計契約](docs/FOUNDATION_CONTRACT.md) | Agent・タスク・復旧を含む具体的な設計 |
-| [基盤レビュー](docs/FOUNDATION_REVIEW.md) | 順序0/1の完了条件と検証証跡 |
-| [API認可表](docs/API_AUTHORIZATION.csv) | 実装済み全ルートの認証・操作・範囲・再認証 |
-| [設計判断](docs/DECISIONS.md) | 技術選定と判断理由 |
-| [開発計画](docs/PLAN.md) | 実装順序と状態 |
-| [進捗](docs/PROGRESS.md) | 実装・検証の証跡と未完了事項 |
-| [セキュリティ](docs/SECURITY.md) | 脅威と対策・レビュー項目 |
-| [運用手順](docs/OPERATIONS.md) | 開発環境・ビルド・HTTPS起動 |
-| [テスト](docs/TESTING.md) | 検証計画・合格基準 |
-| [OSS調査](docs/OSS_RESEARCH.md) | 上流資料と採用判断 |
-| [貢献の手順](CONTRIBUTING.md) | Issue・プルリクエスト・開発ルール |
+| [設計仕様書](docs/SPECIFICATION.md) | 製品の仕様、初期リリースの範囲、完了条件 |
+| [アーキテクチャ](docs/ARCHITECTURE.md) | 構成、データモデル、信頼境界 |
+| [設計判断](docs/DECISIONS.md) | 技術の選定と判断の理由（ADR） |
+| [API契約](docs/API.md)・[API認可表](docs/API_AUTHORIZATION.csv) | エンドポイント、入力、エラー、認可の条件 |
+| [セキュリティ設計](docs/SECURITY.md) | 脅威と対策 |
+| [運用手順](docs/OPERATIONS.md) | ビルド、起動、開発サーバー |
+| [テスト](docs/TESTING.md)・[進捗](docs/PROGRESS.md) | 検証計画と、検証の記録・未完了の事項 |
+
+## 名前について
+
+AmuOSの名前は「編む」から取りました。編み物は、一本一本の糸を編み込むことで一枚の布になります。サーバー、アプリ、監視、権限など、ばらばらになりがちな管理の機能を、少しずつ編み合わせていけたら、という思いを込めています。
 
 ## AIの利用について
 
@@ -214,16 +152,12 @@ AmuOSは、AIによるコーディング支援を活用しながら開発して�
 
 Issueやプルリクエストをいただけると、とても嬉しいです。不具合の報告や小さな修正、ドキュメントの誤字の指摘も大歓迎です。手順は [CONTRIBUTING.md](CONTRIBUTING.md) にまとめています。改変した内容を公開する義務はありませんが、もし共有していただけたら、ありがたく参考にさせていただきます。
 
-## セキュリティ
-
 脆弱性に気づかれた場合は、お手数ですが公開Issueではなく、[SECURITY.md](SECURITY.md) の方法で非公開にお知らせください。
 
-## ライセンスと免責
+## ライセンス
 
 AmuOSは [Apache License 2.0](LICENSE) で公開しています。ライセンスの条件の範囲で、個人・商用を問わずどなたでも自由に利用・改変・再配布していただけます。再配布の際は、ライセンス全文と著作権・帰属表示をそのまま残してください。
 
-本ソフトウェアは「現状のまま」提供しており、明示・黙示を問わず、いかなる保証もありません。利用によって生じた不具合、データの損失、その他の損害について、適用法令で認められる範囲で、開発者は責任を負いかねます。詳しくはライセンス本文の第7条・第8条をご確認ください。
+本ソフトウェアは「現状のまま」提供しており、明示・黙示を問わず、いかなる保証もありません。利用によって生じた不具合、データの損失、その他の損害について、適用法令で認められる範囲で、開発者は責任を負いかねます。詳しくはライセンス本文の第7条・第8条をご確認ください。そのうえで、安定性・信頼性・セキュリティを少しずつでも良くしていけるよう努めていきます。
 
-そのうえで、安定性・信頼性・セキュリティを少しずつでも良くしていけるよう努めていきます。
-
-依存しているOSS（chi: MIT、modernc.org/sqlite: BSD-3-Clause、golang.org/x/crypto: BSD-3-Clause など）は、それぞれのライセンスに従います。素晴らしいOSSを公開してくださっている皆さまに感謝します。
+AmuOSは、chi、modernc.org/sqlite、golang.org/x/crypto、React、Radix UI、Tailwind CSS、Vite+ など多くのオープンソースソフトウェアに支えられています。それぞれのライセンスに従って利用しており、素晴らしいソフトウェアを公開してくださっている皆さまに感謝します。
