@@ -27,6 +27,10 @@ type Invitation struct {
 // Domain rejections are audited and committed. Callbacks must do all domain
 // validation before changing state; database errors always roll back.
 func (s *Store) accountMutation(ctx context.Context, token, csrf, action, target string, now time.Time, fn func(*sql.Tx, rbac.Principal) error) error {
+	return s.accountMutationDetails(ctx, token, csrf, action, target, now, nil, fn)
+}
+
+func (s *Store) accountMutationDetails(ctx context.Context, token, csrf, action, target string, now time.Time, details map[string]any, fn func(*sql.Tx, rbac.Principal) error) error {
 	var rejected error
 	err := s.transaction(ctx, func(tx *sql.Tx) error {
 		p, hash, err := authenticate(tx, token, now)
@@ -59,7 +63,7 @@ func (s *Store) accountMutation(ctx context.Context, token, csrf, action, target
 			}
 			return audit(ctx, tx, now, p.ID, action, target, "", "denied", reason)
 		}
-		return audit(ctx, tx, now, p.ID, action, target, "", "success", "")
+		return auditWithDetails(ctx, tx, now, p.ID, action, target, "", "success", "", details)
 	})
 	if err != nil {
 		return err

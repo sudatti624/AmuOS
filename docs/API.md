@@ -40,6 +40,20 @@ Origin・JSON・入力検証・CSRF・認証・認可・レート制限・認証
 
 拒否時の主体は、有効なセッションが確認できた場合のみ本人とし、それ以外はanonymous。拒否ログのためにセッションの最終利用時刻を更新しない。切断によるキャンセル後も最大2秒で監査を試み、保存できない場合は503 audit_unavailableを返す。保存障害は秘密値を含まないリクエストID付きログで通知する。正常な生存確認は監査保存障害だけで停止しない。
 
+## 監査ログの保持
+
+| メソッド・パス | 本文・認可・結果 |
+|---|---|
+| GET /audit/retention | 全体audit.read。retention_daysを返す、200 |
+| PUT /audit/retention | retention_days（必須整数、1〜3650日）。再認証済みOwner・Origin・CSRF。200 |
+| POST /audit/retention/run | 本文は空のJSONオブジェクト `{}`。再認証済みOwner・Origin・CSRF。期限切れ削除を最大1000件実行し、結果を200で返す |
+
+既定保持期間は180日。削除対象は `at < 現在UTC時刻 - retention_days × 24時間` のイベントのみで、境界ちょうどのイベントは保持する。通常APIに任意の監査イベントの変更・個別削除機能は設けない。runの本文でIDや別の期限を指定することもできない。
+
+実行結果はretention_days、cutoff（Unix秒）、deleted_count、first_deleted_id、last_deleted_id、more_expiredを含む。期限切れが残る場合のみmore_expiredがtrueとなる。保持期間の変更だけでは削除しない。現在はOwnerが明示的に実行する専用処理で、自動スケジューラは未実装。
+
+監査イベントにはdetailsオブジェクトを追加する。設定変更のbefore_days/after_days、削除の基準・件数・ID範囲・残件有無を記録し、設定更新/削除とそのイベントを同じトランザクションで確定する。監査保存に失敗した場合は削除も戻し、成功を返さない。既存イベントのdetailsは空オブジェクトとして移行する。
+
 ## アカウント管理の契約
 
 仕様§10.3〜10.5に従う追加API。実装と検証の到達状況はPROGRESS.mdに記録する。

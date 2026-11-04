@@ -66,6 +66,9 @@ func New(db *store.Store, origin string) (http.Handler, error) {
 	r.Get("/api/v1/hosts", s.hosts)
 	r.Post("/api/v1/hosts", s.createHost)
 	r.Get("/api/v1/audit", s.events)
+	r.Get("/api/v1/audit/retention", s.auditRetention)
+	r.Put("/api/v1/audit/retention", s.setAuditRetention)
+	r.Post("/api/v1/audit/retention/run", s.purgeAudit)
 	return r, nil
 }
 

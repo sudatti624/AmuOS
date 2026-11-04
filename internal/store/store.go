@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -27,7 +28,7 @@ var (
 //go:embed migrations/*.sql
 var migrations embed.FS
 
-var migrationNames = []string{"001_foundation.sql", "002_accounts.sql", "003_authorization.sql", "004_audit_requests.sql"}
+var migrationNames = []string{"001_foundation.sql", "002_accounts.sql", "003_authorization.sql", "004_audit_requests.sql", "005_audit_retention.sql"}
 
 type Store struct{ db *sql.DB }
 type Host struct {
@@ -36,15 +37,16 @@ type Host struct {
 	State string `json:"state"`
 }
 type Event struct {
-	ID        int64  `json:"id"`
-	At        int64  `json:"at"`
-	Actor     string `json:"actor_id"`
-	Action    string `json:"action"`
-	Target    string `json:"target_id"`
-	HostID    string `json:"host_id,omitempty"`
-	Outcome   string `json:"outcome"`
-	Reason    string `json:"reason"`
-	RequestID string `json:"request_id,omitempty"`
+	ID        int64           `json:"id"`
+	At        int64           `json:"at"`
+	Actor     string          `json:"actor_id"`
+	Action    string          `json:"action"`
+	Target    string          `json:"target_id"`
+	HostID    string          `json:"host_id,omitempty"`
+	Outcome   string          `json:"outcome"`
+	Reason    string          `json:"reason"`
+	RequestID string          `json:"request_id,omitempty"`
+	Details   json.RawMessage `json:"details"`
 }
 type Session struct {
 	Token  string
@@ -119,11 +121,22 @@ func Open(path string) (*Store, error) {
 func (s *Store) Close() error { return s.db.Close() }
 
 func audit(ctx context.Context, tx *sql.Tx, now time.Time, actor, action, target, host, outcome, reason string) error {
+	return auditWithDetails(ctx, tx, now, actor, action, target, host, outcome, reason, nil)
+}
+
+func auditWithDetails(ctx context.Context, tx *sql.Tx, now time.Time, actor, action, target, host, outcome, reason string, details map[string]any) error {
 	var hostValue any
 	if host != "" {
 		hostValue = host
 	}
-	_, err := tx.Exec(`INSERT INTO audit_events(at,actor_id,action,target_id,host_id,outcome,reason,request_id) VALUES(?,?,?,?,?,?,?,?)`, now.Unix(), actor, action, target, hostValue, outcome, reason, RequestID(ctx))
+	if details == nil {
+		details = map[string]any{}
+	}
+	encoded, err := json.Marshal(details)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(`INSERT INTO audit_events(at,actor_id,action,target_id,host_id,outcome,reason,request_id,details) VALUES(?,?,?,?,?,?,?,?,?)`, now.Unix(), actor, action, target, hostValue, outcome, reason, RequestID(ctx), string(encoded))
 	return err
 }
 
@@ -402,16 +415,18 @@ func (s *Store) Events(ctx context.Context, token string, now time.Time) ([]Even
 			denied = true
 			return audit(ctx, tx, now, p.ID, "audit.read", "", "", "denied", "forbidden")
 		}
-		rows, err := tx.Query("SELECT id,at,actor_id,action,target_id,coalesce(host_id,''),outcome,reason,request_id FROM audit_events ORDER BY id DESC")
+		rows, err := tx.Query("SELECT id,at,actor_id,action,target_id,coalesce(host_id,''),outcome,reason,request_id,details FROM audit_events ORDER BY id DESC")
 		if err != nil {
 			return err
 		}
 		defer rows.Close()
 		for rows.Next() {
 			var e Event
-			if err := rows.Scan(&e.ID, &e.At, &e.Actor, &e.Action, &e.Target, &e.HostID, &e.Outcome, &e.Reason, &e.RequestID); err != nil {
+			var details string
+			if err := rows.Scan(&e.ID, &e.At, &e.Actor, &e.Action, &e.Target, &e.HostID, &e.Outcome, &e.Reason, &e.RequestID, &details); err != nil {
 				return err
 			}
+			e.Details = json.RawMessage(details)
 			if p.Allows(rbac.AuditRead, e.HostID) {
 				events = append(events, e)
 				if len(events) == 100 {
