@@ -22,6 +22,8 @@ export default defineConfig({
     emptyOutDir: true,
     assetsInlineLimit: 0,
     modulePreload: { polyfill: false },
+    // Licenses of bundled dependencies, collected into release archives.
+    license: { fileName: ".vite/license.md" },
   },
   server: {
     https:

@@ -62,9 +62,69 @@ jobs:
       - run: pnpm exec playwright test
         env:
           CI: 'true'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: failure()
         with:
           name: playwright-report
           path: web/playwright-report
           retention-days: 7
+      - name: Package Linux archive
+        working-directory: .
+        env:
+          VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('dev-{0}', github.sha) }}
+        run: bash scripts/package.sh "$VERSION"
+      - uses: actions/upload-artifact@v5
+        with:
+          name: linux-amd64
+          path: |
+            dist/release/*.tar.gz
+            dist/release/SHA256SUMS
+          retention-days: 14
+
+  # Install the archive by following docs/INSTALL.md on the supported systems.
+  install-ubuntu:
+    needs: web
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v5
+        with:
+          name: linux-amd64
+          path: release
+      - run: cd release && sha256sum -c SHA256SUMS
+      - run: bash scripts/smoke-install.sh release/*.tar.gz
+
+  install-debian:
+    needs: web
+    runs-on: ubuntu-24.04
+    container: debian:13
+    steps:
+      - run: apt-get update && apt-get install -y --no-install-recommends ca-certificates curl openssl
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v5
+        with:
+          name: linux-amd64
+          path: release
+      - run: cd release && sha256sum -c SHA256SUMS
+      - run: bash scripts/smoke-install.sh release/*.tar.gz
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [go, web, install-ubuntu, install-debian]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v5
+        with:
+          name: linux-amd64
+          path: release
+      - name: Publish pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "$GITHUB_REF_NAME" release/*.tar.gz release/SHA256SUMS
+          --title "AmuOS $GITHUB_REF_NAME"
+          --notes-file "docs/releases/$GITHUB_REF_NAME.md"
+          --prerelease --verify-tag

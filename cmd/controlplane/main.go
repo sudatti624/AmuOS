@@ -19,7 +19,11 @@ import (
 	"github.com/sudatti624/AmuOS/internal/store"
 )
 
+// version is set by release builds with -ldflags "-X main.version=...".
+var version = "dev"
+
 func run() error {
+	showVersion := flag.Bool("version", false, "print the version and exit")
 	dbPath := flag.String("db", "data/amuos.db", "SQLite database path")
 	addr := flag.String("addr", "127.0.0.1:8443", "HTTPS listen address")
 	origin := flag.String("origin", "https://localhost:8443", "exact external HTTPS origin")
@@ -27,6 +31,10 @@ func run() error {
 	key := flag.String("tls-key", "", "server private key PEM")
 	bootstrap := flag.String("bootstrap-file", "", "write initial setup token to a new local private file and exit")
 	flag.Parse()
+	if *showVersion {
+		fmt.Println("amuos-controlplane", version)
+		return nil
+	}
 	if *bootstrap == "" && (*cert == "" || *key == "") {
 		return errors.New("--tls-cert and --tls-key are required")
 	}
