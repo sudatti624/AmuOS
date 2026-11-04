@@ -1,0 +1,272 @@
+package controlplane
+
+import (
+	"encoding/json"
+	"errors"
+	"io"
+	"net"
+	"net/http"
+	"net/url"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/sudatti624/AmuOS/internal/store"
+)
+
+const cookieName = "__Host-amuos_session"
+
+type bucket struct {
+	Count int
+	Until time.Time
+}
+type Server struct {
+	store     *store.Store
+	origin    string
+	clock     func() time.Time
+	mu        sync.Mutex
+	attempts  map[string]bucket
+	authSlots chan struct{}
+}
+
+func New(db *store.Store, origin string) (http.Handler, error) {
+	u, err := url.Parse(origin)
+	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Path != "" {
+		return nil, errors.New("origin must be an HTTPS origin without a path")
+	}
+	s := &Server{store: db, origin: origin, clock: time.Now, attempts: map[string]bucket{}, authSlots: make(chan struct{}, 1)}
+	r := chi.NewRouter()
+	r.Use(s.headers)
+	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) { respond(w, 200, map[string]string{"status": "ok"}) })
+	r.Post("/api/v1/setup", s.setup)
+	r.Post("/api/v1/auth/login", s.login)
+	r.Post("/api/v1/auth/logout", s.logout)
+	r.Get("/api/v1/me", s.identity)
+	r.Get("/api/v1/hosts", s.hosts)
+	r.Post("/api/v1/hosts", s.createHost)
+	r.Get("/api/v1/audit", s.events)
+	return r, nil
+}
+
+func (s *Server) headers(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Referrer-Policy", "no-referrer")
+		w.Header().Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+		w.Header().Set("Strict-Transport-Security", "max-age=31536000")
+		next.ServeHTTP(w, r)
+	})
+}
+
+func respond(w http.ResponseWriter, status int, value any) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(value)
+}
+
+func failure(w http.ResponseWriter, err error) {
+	status, code := http.StatusInternalServerError, "internal_error"
+	switch {
+	case errors.Is(err, store.ErrCredentials):
+		status, code = 401, "unauthorized"
+	case errors.Is(err, store.ErrDenied):
+		status, code = 403, "forbidden"
+	case errors.Is(err, store.ErrConflict):
+		status, code = 409, "conflict"
+	case errors.Is(err, store.ErrInput):
+		status, code = 400, "invalid_input"
+	}
+	respond(w, status, map[string]string{"error": code})
+}
+
+func decode(w http.ResponseWriter, r *http.Request, value any) bool {
+	if strings.Split(r.Header.Get("Content-Type"), ";")[0] != "application/json" {
+		respond(w, 415, map[string]string{"error": "json_required"})
+		return false
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 16*1024)
+	d := json.NewDecoder(r.Body)
+	d.DisallowUnknownFields()
+	if err := d.Decode(value); err != nil {
+		respond(w, 400, map[string]string{"error": "invalid_json"})
+		return false
+	}
+	if err := d.Decode(new(any)); !errors.Is(err, io.EOF) {
+		respond(w, 400, map[string]string{"error": "invalid_json"})
+		return false
+	}
+	return true
+}
+
+func sessionToken(r *http.Request) string {
+	c, err := r.Cookie(cookieName)
+	if err != nil {
+		return ""
+	}
+	return c.Value
+}
+
+func (s *Server) sameOrigin(w http.ResponseWriter, r *http.Request) bool {
+	if r.Header.Get("Origin") != s.origin {
+		respond(w, 403, map[string]string{"error": "origin_rejected"})
+		return false
+	}
+	return true
+}
+
+func (s *Server) authAllowed(w http.ResponseWriter, r *http.Request) bool {
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		ip = r.RemoteAddr
+	}
+	now := s.clock()
+	s.mu.Lock()
+	for k, v := range s.attempts {
+		if !now.Before(v.Until) {
+			delete(s.attempts, k)
+		}
+	}
+	b, exists := s.attempts[ip]
+	if (!exists && len(s.attempts) >= 4096) || b.Count >= 5 {
+		s.mu.Unlock()
+		w.Header().Set("Retry-After", "900")
+		respond(w, 429, map[string]string{"error": "rate_limited"})
+		return false
+	}
+	if !exists {
+		b.Until = now.Add(15 * time.Minute)
+	}
+	b.Count++
+	s.attempts[ip] = b
+	s.mu.Unlock()
+	return true
+}
+
+func (s *Server) acquireAuth(w http.ResponseWriter, r *http.Request) bool {
+	select {
+	case s.authSlots <- struct{}{}:
+		return true
+	default:
+		w.Header().Set("Retry-After", "1")
+		respond(w, 503, map[string]string{"error": "auth_busy"})
+		return false
+	}
+}
+
+func (s *Server) setup(w http.ResponseWriter, r *http.Request) {
+	if !s.sameOrigin(w, r) || !s.authAllowed(w, r) {
+		return
+	}
+	var body struct {
+		Token    string `json:"token"`
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if !decode(w, r, &body) {
+		return
+	}
+	if len(body.Password) < 12 || len(body.Password) > 128 || len(body.Username) < 3 || len(body.Username) > 64 {
+		respond(w, 400, map[string]string{"error": "invalid_input"})
+		return
+	}
+	if !s.acquireAuth(w, r) {
+		return
+	}
+	defer func() { <-s.authSlots }()
+	if err := s.store.Setup(r.Context(), body.Token, body.Username, body.Password, s.clock()); err != nil {
+		failure(w, err)
+		return
+	}
+	respond(w, 201, map[string]string{"status": "initialized"})
+}
+
+func (s *Server) login(w http.ResponseWriter, r *http.Request) {
+	if !s.sameOrigin(w, r) || !s.authAllowed(w, r) {
+		return
+	}
+	var body struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if !decode(w, r, &body) {
+		return
+	}
+	if len(body.Password) > 128 || len(body.Username) > 64 {
+		respond(w, 400, map[string]string{"error": "invalid_input"})
+		return
+	}
+	if !s.acquireAuth(w, r) {
+		return
+	}
+	defer func() { <-s.authSlots }()
+	session, err := s.store.Login(r.Context(), body.Username, body.Password, s.clock())
+	if err != nil {
+		failure(w, err)
+		return
+	}
+	http.SetCookie(w, &http.Cookie{Name: cookieName, Value: session.Token, Path: "/", Secure: true, HttpOnly: true, SameSite: http.SameSiteStrictMode, MaxAge: 12 * 60 * 60})
+	respond(w, 200, map[string]string{"user_id": session.UserID, "csrf_token": session.CSRF})
+}
+
+func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
+	if !s.sameOrigin(w, r) {
+		return
+	}
+	if err := s.store.Logout(r.Context(), sessionToken(r), r.Header.Get("X-CSRF-Token"), s.clock()); err != nil {
+		failure(w, err)
+		return
+	}
+	http.SetCookie(w, &http.Cookie{Name: cookieName, Path: "/", Secure: true, HttpOnly: true, SameSite: http.SameSiteStrictMode, MaxAge: -1})
+	respond(w, 200, map[string]string{"status": "logged_out"})
+}
+
+func (s *Server) identity(w http.ResponseWriter, r *http.Request) {
+	p, err := s.store.Identity(r.Context(), sessionToken(r), s.clock())
+	if err != nil {
+		failure(w, err)
+		return
+	}
+	respond(w, 200, map[string]any{"id": p.ID, "grants": p.Grants})
+}
+
+func (s *Server) hosts(w http.ResponseWriter, r *http.Request) {
+	hosts, err := s.store.Hosts(r.Context(), sessionToken(r), s.clock())
+	if err != nil {
+		failure(w, err)
+		return
+	}
+	respond(w, 200, map[string]any{"items": hosts})
+}
+
+func (s *Server) createHost(w http.ResponseWriter, r *http.Request) {
+	if !s.sameOrigin(w, r) {
+		return
+	}
+	var body struct {
+		Name string `json:"name"`
+	}
+	if !decode(w, r, &body) {
+		return
+	}
+	if len(strings.TrimSpace(body.Name)) < 1 || len(body.Name) > 128 {
+		respond(w, 400, map[string]string{"error": "invalid_input"})
+		return
+	}
+	host, err := s.store.CreateHost(r.Context(), sessionToken(r), r.Header.Get("X-CSRF-Token"), body.Name, s.clock())
+	if err != nil {
+		failure(w, err)
+		return
+	}
+	respond(w, 201, host)
+}
+
+func (s *Server) events(w http.ResponseWriter, r *http.Request) {
+	events, err := s.store.Events(r.Context(), sessionToken(r), s.clock())
+	if err != nil {
+		failure(w, err)
+		return
+	}
+	respond(w, 200, map[string]any{"items": events})
+}

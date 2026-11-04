@@ -1,0 +1,87 @@
+package main
+
+import (
+	"context"
+	"crypto/tls"
+	"errors"
+	"flag"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/sudatti624/AmuOS/internal/controlplane"
+	"github.com/sudatti624/AmuOS/internal/store"
+)
+
+func run() error {
+	dbPath := flag.String("db", "data/amuos.db", "SQLite database path")
+	addr := flag.String("addr", "127.0.0.1:8443", "HTTPS listen address")
+	origin := flag.String("origin", "https://localhost:8443", "exact external HTTPS origin")
+	cert := flag.String("tls-cert", "", "server certificate PEM")
+	key := flag.String("tls-key", "", "server private key PEM")
+	bootstrap := flag.String("bootstrap-file", "", "write initial setup token to a new local private file and exit")
+	flag.Parse()
+	if *bootstrap == "" && (*cert == "" || *key == "") {
+		return errors.New("--tls-cert and --tls-key are required")
+	}
+	db, err := store.Open(*dbPath)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	if *bootstrap != "" {
+		// O_EXCL prevents overwriting an existing credential file.
+		file, err := os.OpenFile(*bootstrap, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+		if err != nil {
+			return err
+		}
+		token, err := db.PrepareBootstrap(context.Background(), time.Now())
+		if err != nil {
+			file.Close()
+			os.Remove(*bootstrap)
+			return err
+		}
+		if _, err = file.WriteString(token + "\n"); err != nil {
+			file.Close()
+			os.Remove(*bootstrap)
+			return err
+		}
+		if err = file.Close(); err != nil {
+			return err
+		}
+		fmt.Println("Setup token written to the specified file; valid for 10 minutes. Keep it private and remove after setup.")
+		return nil
+	}
+	handler, err := controlplane.New(db, *origin)
+	if err != nil {
+		return err
+	}
+	srv := &http.Server{Addr: *addr, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 * 1024, TLSConfig: &tls.Config{MinVersion: tls.VersionTLS13}}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	done := make(chan error, 1)
+	go func() { done <- srv.ListenAndServeTLS(*cert, *key) }()
+	slog.Info("control plane starting", "address", *addr)
+	select {
+	case err := <-done:
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+		return err
+	case <-ctx.Done():
+		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		return srv.Shutdown(shutdown)
+	}
+}
+
+func main() {
+	if err := run(); err != nil {
+		slog.Error("control plane stopped", "error", err)
+		os.Exit(1)
+	}
+}
