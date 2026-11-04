@@ -136,6 +136,9 @@ func auditWithDetails(ctx context.Context, tx *sql.Tx, now time.Time, actor, act
 	if err != nil {
 		return err
 	}
+	if len(encoded) > 64*1024 {
+		return errors.New("audit details exceed limit")
+	}
 	_, err = tx.Exec(`INSERT INTO audit_events(at,actor_id,action,target_id,host_id,outcome,reason,request_id,details) VALUES(?,?,?,?,?,?,?,?,?)`, now.Unix(), actor, action, target, hostValue, outcome, reason, RequestID(ctx), string(encoded))
 	return err
 }
@@ -220,7 +223,11 @@ func (s *Store) Setup(ctx context.Context, token, username, password string, now
 		if _, err := tx.Exec("DELETE FROM bootstrap"); err != nil {
 			return err
 		}
-		return audit(ctx, tx, now, id, "setup.complete", id, "", "success", "")
+		state, err := userAuditState(tx, id)
+		if err != nil {
+			return err
+		}
+		return auditWithDetails(ctx, tx, now, id, "setup.complete", id, "", "success", "", map[string]any{"before": nil, "after": state})
 	})
 }
 
@@ -383,7 +390,7 @@ func (s *Store) CreateHost(ctx context.Context, token, csrf, name string, now ti
 		if _, err := tx.Exec("INSERT INTO hosts(id,name) VALUES(?,?)", host.ID, host.Name); err != nil {
 			return err
 		}
-		return audit(ctx, tx, now, p.ID, "host.create", host.ID, host.ID, "success", "")
+		return auditWithDetails(ctx, tx, now, p.ID, "host.create", host.ID, host.ID, "success", "", map[string]any{"before": nil, "after": host})
 	})
 	if err != nil {
 		return Host{}, err

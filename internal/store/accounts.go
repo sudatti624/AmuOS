@@ -43,7 +43,22 @@ func (s *Store) accountMutationDetails(ctx context.Context, token, csrf, action,
 		if !security.EqualDigest(csrf, hash) {
 			rejected = ErrDenied
 		} else {
+			capture := details == nil
+			var before any
+			if capture {
+				before, err = auditSnapshot(tx, p, token, action, target)
+				if err != nil {
+					return err
+				}
+			}
 			rejected = fn(tx, p)
+			if rejected == nil && capture {
+				after, err := auditSnapshot(tx, p, token, action, target)
+				if err != nil {
+					return err
+				}
+				details = map[string]any{"before": before, "after": after}
+			}
 		}
 		if rejected != nil {
 			reason := ""
@@ -385,7 +400,7 @@ func (s *Store) AcceptInvitation(ctx context.Context, token, password string, no
 		if _, err := tx.Exec("UPDATE invitations SET consumed_at=? WHERE id=?", now.Unix(), id); err != nil {
 			return err
 		}
-		return audit(ctx, tx, now, result.ID, "invitation.accept", id, "", "success", "")
+		return auditWithDetails(ctx, tx, now, result.ID, "invitation.accept", id, "", "success", "", map[string]any{"before": map[string]any{"consumed": false}, "after": map[string]any{"consumed": true, "user": result, "grants": grants}})
 	})
 	if err != nil {
 		return User{}, err
