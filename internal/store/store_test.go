@@ -70,6 +70,30 @@ func TestBootstrapOneUseAndExpiry(t *testing.T) {
 	}
 }
 
+func TestProfileReturnsOnlyOwnUsername(t *testing.T) {
+	s, session, path := prepared(t)
+	ctx := context.Background()
+	p, username, err := s.Profile(ctx, session.Token, testTime)
+	if err != nil || username != "owner" || p.ID != session.UserID {
+		t.Fatalf("profile=%v %q err=%v", p, username, err)
+	}
+	if _, username, err = s.Profile(ctx, "unknown", testTime); !errors.Is(err, ErrCredentials) || username != "" {
+		t.Fatalf("unknown session: %q %v", username, err)
+	}
+	if _, _, err = s.Profile(ctx, session.Token, testTime.Add(30*time.Minute)); !errors.Is(err, ErrCredentials) {
+		t.Fatalf("idle expiry: %v", err)
+	}
+	s.Close()
+	reopened, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	if _, username, err = reopened.Profile(ctx, session.Token, testTime); err != nil || username != "owner" {
+		t.Fatalf("after restart: %q %v", username, err)
+	}
+}
+
 func TestSessionExpiryAndLogout(t *testing.T) {
 	s, session, _ := prepared(t)
 	ctx := context.Background()

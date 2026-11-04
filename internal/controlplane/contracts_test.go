@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/sudatti624/AmuOS/internal/security"
+	"github.com/sudatti624/AmuOS/internal/webui"
 )
 
 func TestAuthorizationContractCoversEveryRoute(t *testing.T) {
@@ -28,6 +29,10 @@ func TestAuthorizationContractCoversEveryRoute(t *testing.T) {
 	}
 	documented := map[string][]string{}
 	public := map[string]string{"GET /healthz": "public", "POST /api/v1/setup": "bootstrap", "POST /api/v1/auth/login": "password", "POST /api/v1/invitations/accept": "invitation"}
+	// The application shell and build files carry no data; the API authorizes every action.
+	for _, path := range append(webui.Pages, "/assets/*", "/favicon.svg") {
+		public["GET "+path] = "static"
+	}
 	for _, row := range rows[1:] {
 		if len(row) != 7 {
 			t.Fatal("invalid contract row", row)

@@ -29,3 +29,42 @@ jobs:
         env:
           CGO_ENABLED: '0'
         run: go build -o dist/controlplane ./cmd/controlplane
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Enable pnpm from packageManager
+        run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec vp check
+      - run: pnpm exec vp test
+      - run: pnpm exec vp build
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: .go-version
+          cache: true
+      - name: Build control plane with the web UI
+        working-directory: .
+        env:
+          CGO_ENABLED: '0'
+        run: |
+          go test ./internal/controlplane/
+          go build -o dist/controlplane ./cmd/controlplane
+          go build -o dist/devcert ./scripts/devcert
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm exec playwright test
+        env:
+          CI: 'true'
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: web/playwright-report
+          retention-days: 7

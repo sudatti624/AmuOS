@@ -322,6 +322,20 @@ func (s *Store) Identity(ctx context.Context, token string, now time.Time) (rbac
 	return p, err
 }
 
+// Profile returns the session principal and its own username for display.
+func (s *Store) Profile(ctx context.Context, token string, now time.Time) (rbac.Principal, string, error) {
+	var p rbac.Principal
+	var username string
+	err := s.transaction(ctx, func(tx *sql.Tx) error {
+		var err error
+		if p, _, err = authenticate(tx, token, now); err != nil {
+			return err
+		}
+		return tx.QueryRow("SELECT username FROM users WHERE id=?", p.ID).Scan(&username)
+	})
+	return p, username, err
+}
+
 func (s *Store) Logout(ctx context.Context, token, csrf string, now time.Time) error {
 	var denied bool
 	err := s.transaction(ctx, func(tx *sql.Tx) error {

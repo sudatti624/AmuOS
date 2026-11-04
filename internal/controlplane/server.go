@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/sudatti624/AmuOS/internal/security"
 	"github.com/sudatti624/AmuOS/internal/store"
+	"github.com/sudatti624/AmuOS/internal/webui"
 )
 
 const cookieName = "__Host-amuos_session"
@@ -69,6 +70,12 @@ func New(db *store.Store, origin string) (http.Handler, error) {
 	r.Get("/api/v1/audit/retention", s.auditRetention)
 	r.Put("/api/v1/audit/retention", s.setAuditRetention)
 	r.Post("/api/v1/audit/retention/run", s.purgeAudit)
+	for _, page := range webui.Pages {
+		r.Get(page, webui.Shell)
+	}
+	asset := webui.Asset(func(w http.ResponseWriter, r *http.Request) { s.reject(w, r, 404, "not_found") })
+	r.Get("/assets/*", asset)
+	r.Get("/favicon.svg", asset)
 	return r, nil
 }
 
@@ -256,12 +263,12 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) identity(w http.ResponseWriter, r *http.Request) {
-	p, err := s.store.Identity(r.Context(), sessionToken(r), s.clock())
+	p, username, err := s.store.Profile(r.Context(), sessionToken(r), s.clock())
 	if err != nil {
 		s.failure(w, r, err)
 		return
 	}
-	respond(w, 200, map[string]any{"id": p.ID, "grants": p.Grants, "authorization_version": p.Version})
+	respond(w, 200, map[string]any{"id": p.ID, "username": username, "grants": p.Grants, "authorization_version": p.Version})
 }
 
 func (s *Server) hosts(w http.ResponseWriter, r *http.Request) {

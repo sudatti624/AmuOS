@@ -7,7 +7,7 @@
 
 AmuOSは、既存のLinuxにインストールして使う、小さなサーバー管理基盤をつくろうとしているオープンソースのプロジェクトです。複数ホストの情報や監視データを、一つのURL・認証・管理画面でまとめて扱えるようにしたいと考えています。
 
-まだ開発を始めたばかりで、いまあるのは**Go製Control Planeの認証・RBAC・監査の土台**だけです。Web画面やAgentはなく、操作はHTTP APIで行います。至らない点も多いと思いますが、少しずつ育てていければと思っています。
+まだ開発を始めたばかりで、いまあるのは**Go製Control Planeの認証・RBAC・監査の土台**と、それを操作する最初のWeb画面です。Agentや監視はまだありません。至らない点も多いと思いますが、少しずつ育てていければと思っています。
 
 > [!WARNING]
 > 開発途中のソフトウェアです。APIやデータ形式は予告なく変わることがあります。本番環境やインターネットに公開された環境での利用はお控えください。
@@ -33,6 +33,7 @@ AmuOSの名前は「編む」から取りました。編み物は、一本一本
 | 監査 | 変更前後の要約、HTTP拒否とリクエストID、自動保持と原子的な削除監査、Ownerによる設定・手動実行 |
 | 重複作成防止 | ホスト登録枠の冪等キーと結果を永続化し、通信断・再起動後の同一要求でも重複を防止 |
 | 永続化 | SQLite、バージョン付きスキーマ適用 |
+| Web画面 | 初回設定、ログイン、招待の受け取り、ユーザー・グループ・ロール・オーナーの管理、ホスト登録枠、アクティビティ、パスワード変更・監査ログ保持の設定。日本語表示、ダーク/ライトテーマ |
 
 ホストIDの確保はAgent登録を意味せず、実ホストの情報・監視値はまだ取得しません。
 
@@ -46,7 +47,7 @@ Phase 1・2の基本機能に絞り、次を優先します。
 - 監査ログと基盤タスクの状態管理
 - 導入手順、整合性のあるバックアップ・復元、認可テスト、主要画面のE2Eテスト
 
-Agent、監視、Web画面、バックアップ・復元、基盤タスクは今後の実装対象です。Docker管理、アプリケーションのデプロイ、ファイル管理、VM管理、systemdの変更操作は、基盤の安定性とセキュリティを検証した後のPhaseで扱います。
+Agent、監視、バックアップ・復元、基盤タスクは今後の実装対象です。Web画面も、機能の追加に合わせて広げていきます。Docker管理、アプリケーションのデプロイ、ファイル管理、VM管理、systemdの変更操作は、基盤の安定性とセキュリティを検証した後のPhaseで扱います。
 
 ## 構成と技術
 
@@ -57,14 +58,27 @@ Control Planeが認証・認可・データ保存を担当し、各Linuxホス�
 | Control Plane | Go 1.27系、chi v5、SQLite、slog |
 | 認証 | golang.org/x/crypto/argon2、サーバー側セッション |
 | Agent | Go、mTLS。未実装 |
-| Web UI | React、TypeScript、Vite+、Tailwind CSS、shadcn/uiを予定。未実装 |
-| 検証 | Go testing、HTTP・SQLite統合テスト。Vitest・Playwrightは今後導入 |
+| Web UI | React、TypeScript、Vite+、Tailwind CSS v4、shadcn/uiの方式によるコンポーネント。ビルド結果をControl Planeに組み込み、同じURLで配信 |
+| 検証 | Go testing、HTTP・SQLite統合テスト、Vitest（Vite+）、Playwrightによる主要画面のE2E |
 
-依存バージョンは [go.mod](go.mod)・[go.sum](go.sum) に固定しています。sqlc・gooseの統合は未完了です。
+依存バージョンは [go.mod](go.mod)・[go.sum](go.sum)・[web/pnpm-lock.yaml](web/pnpm-lock.yaml) に固定しています。sqlc・gooseの統合は未完了です。
 
 ## 開発環境とビルド
 
-Go 1.27系と、依存パッケージを取得できるネットワーク環境が必要です。以下はリポジトリ直下で実行します。
+Go 1.27系、Node.js 24系、pnpm 12系と、依存パッケージを取得できるネットワーク環境が必要です。
+
+Web画面はControl Planeのバイナリに組み込まれるため、先に画面をビルドします。画面をビルドせずにGoだけをビルドした場合も起動はできますが、画面の代わりに案内文が表示されます。
+
+```sh
+cd web
+pnpm install
+pnpm exec vp check   # 整形・lint・型チェック
+pnpm exec vp test    # 単体テスト
+pnpm exec vp build   # internal/webui/static/app に出力
+cd ..
+```
+
+続いてリポジトリ直下でGoのテストとビルドを行います。
 
 ```sh
 go mod download
@@ -84,7 +98,17 @@ Linux:
 CGO_ENABLED=0 go build -o dist/controlplane ./cmd/controlplane
 ```
 
-初期検証対象はLinux amd64のUbuntu Server 24.04 LTS・Debian 13です。現在確認済みなのはWindowsでのGoテスト・静的解析と、Windows / Linux amd64向けビルドです。Linuxでの導入・運用検証は未完了です。
+初期検証対象はLinux amd64のUbuntu Server 24.04 LTS・Debian 13です。現在確認済みなのはWindowsでのGoテスト・静的解析、Windows / Linux amd64向けビルド、WindowsでのE2Eテストです。Linuxでの導入・運用検証は未完了です。
+
+ブラウザでのE2Eテストは、ビルド済みのバイナリを使って実行します（テスト用の自己署名証明書を作るため、`devcert` もビルドします）。
+
+```sh
+go build -o dist/controlplane ./cmd/controlplane   # Windowsは dist/controlplane.exe
+go build -o dist/devcert ./scripts/devcert           # Windowsは dist/devcert.exe
+cd web
+pnpm exec playwright install chromium
+pnpm exec playwright test
+```
 
 作業用Goを `.tools/` に配置した環境の設定は [開発時の起動・運用](docs/OPERATIONS.md) を参照してください。開発ツール自体はリポジトリに含みません。
 
@@ -128,19 +152,11 @@ Linux:
 
 デフォルトの待受先は `127.0.0.1:8443` です。`--origin` は利用するHTTPSのOriginに一致させ、末尾の `/` やパスを付けません。
 
-### 4. APIでOwnerを作成する
+### 4. 画面でオーナーを作成する
 
-`POST https://localhost:8443/api/v1/setup` に、`Content-Type: application/json` と `Origin: https://localhost:8443` を付けて、次の形式で送信します。値は実際のトークン・ユーザー名・パスワードに置き換えてください。
+ブラウザで `https://localhost:8443/setup` を開き、手順2で保存したトークン、ユーザー名、パスワードを入力します。作成できたらトークンファイルを削除し、ログイン画面からログインしてください。ほかのユーザーは「ユーザーとグループ」の「招待」から招待できます。
 
-```json
-{
-  "token": "<data/setup-tokenに保存された値>",
-  "username": "owner",
-  "password": "<12〜128バイトのパスワード>"
-}
-```
-
-成功後はトークンファイルを削除します。続いて `POST /api/v1/auth/login` でログインし、返されたCookieと `csrf_token` を利用します。認証後の変更要求には `X-CSRF-Token` が必要です。詳細は [API契約](docs/API.md) を参照してください。
+APIを直接使う場合は、`POST /api/v1/setup` に `Origin` ヘッダーを付けて `token`・`username`・`password` をJSONで送ります。ログイン後の変更要求には、ログイン応答の `csrf_token` を `X-CSRF-Token` として付けます。詳細は [API契約](docs/API.md) を参照してください。
 
 ## 主なAPI
 
@@ -170,7 +186,7 @@ Linux:
 | GET / PUT | `/api/v1/audit/retention` | 保持期間の参照 / 再認証済みOwnerによる設定 |
 | POST | `/api/v1/audit/retention/run` | 再認証済みOwnerによる期限切れログの手動削除（最大1000件） |
 
-`/healthz` 以外の認証・認可条件、入力制約、エラーは [API契約](docs/API.md) に記載しています。Web管理画面はまだなく、トップページは提供しません。
+`/healthz` 以外の認証・認可条件、入力制約、エラーは [API契約](docs/API.md) に記載しています。Web画面のページ（`/`、`/login` など）と `/assets/` 配下のファイルは、認証なしで配信されます。中身はデータを含まない画面の部品で、データの取得と操作はすべて上記のAPIで認可されます。
 
 ## ドキュメント
 

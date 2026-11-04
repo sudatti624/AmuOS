@@ -17,6 +17,31 @@ go build -o dist/controlplane.exe ./cmd/controlplane
 
 Linux amd64向けバイナリは `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o dist/controlplane ./cmd/controlplane`。クロスビルド成功だけではLinux運用検証の代替にならない。
 
+## Web画面のビルドと開発
+
+Node.js 24系とpnpm 12系（`web/package.json` のpackageManager）を使う。画面はGoのバイナリに組み込むため、Goのビルドより先に `web/` でビルドする。出力先 `internal/webui/static/app` はGit対象外。
+
+```powershell
+cd web
+pnpm install
+pnpm exec vp check
+pnpm exec vp test
+pnpm exec vp build
+cd ..
+go build -o dist/controlplane.exe ./cmd/controlplane
+```
+
+画面を変更しながら確認する場合は、Vite+の開発サーバーをHTTPSで起動し、APIをControl Planeへ中継する。Control Planeの `--origin` は開発サーバーのOrigin（例 `https://localhost:5173`）に合わせる。証明書には利用端末が信頼するものを使う。
+
+```powershell
+$env:AMUOS_DEV_TLS_CERT = "data/dev.pem"
+$env:AMUOS_DEV_TLS_KEY = "data/dev-key.pem"
+$env:AMUOS_DEV_CONTROL_PLANE = "https://127.0.0.1:8443"
+pnpm exec vp dev
+```
+
+E2Eは `go build -o dist/devcert.exe ./scripts/devcert` でテスト用の証明書ツールも用意し、`web/` で `pnpm exec playwright install chromium` の後に `pnpm exec playwright test` を実行する。テストは実バイナリを一時ディレクトリの新しいDB・自己署名証明書で起動し、終了後に削除する。`devcert` の証明書は試験専用で、運用には使わない。
+
 ## 初回設定とHTTPS起動
 
 HTTPSサーバー証明書と秘密鍵を用意し、利用端末側で正しく信頼する。検証を無効にする手順は採用しない。Linuxでは専用ユーザー・0700データディレクトリ・0600秘密ファイルを使用する。WindowsのACLは別途OSで設定する必要がある。
@@ -28,7 +53,7 @@ controlplane --db data/amuos.db --addr 127.0.0.1:8443 --origin https://localhost
 
 初回コマンドは未初期化DBに限りセットアップ資格情報を発行し、指定した新規ファイルに保存して終了する。平文トークンを標準出力に出さない。有効期限は10分、再発行で旧トークン無効。初期化済みDBでは拒否する。指定ファイルが既存なら上書きせず拒否する。
 
-`POST /api/v1/setup` に資格情報・username・passwordをJSONで送信し、`Origin` を設定値に一致させる。成功後はセットアップファイルを消す。ログインでCookieとCSRFトークンを取得する。APIの詳細はAPI.md。
+ブラウザで `<origin>/setup` を開き、資格情報・username・passwordを入力する。APIを直接使う場合は `POST /api/v1/setup` にJSONで送信し、`Origin` を設定値に一致させる。成功後はセットアップファイルを消す。ログインでCookieとCSRFトークンを取得する。APIの詳細はAPI.md。
 
 デフォルトはループバックのみ待受。TLS証明書・鍵がなければ起動しない。SIGTERM/割込みでは最大10秒でHTTPを停止しDBを閉じる。ログにパスワード・セッション・CSRFを出力しない。
 

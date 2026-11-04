@@ -20,3 +20,6 @@ setup-token
 .vscode/
 .DS_Store
 Thumbs.db
+internal/webui/static/app/
+web/test-results/
+web/playwright-report/

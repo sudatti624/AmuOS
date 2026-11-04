@@ -26,3 +26,13 @@ GET,/api/v1/audit,session,audit.read,filtered_events,no,none
 GET,/api/v1/audit/retention,session,audit.read,global,no,none
 PUT,/api/v1/audit/retention,session,owner.manage,global,yes,required
 POST,/api/v1/audit/retention/run,session,owner.manage,global,yes,required
+GET,/,static,none,none,no,none
+GET,/setup,static,none,none,no,none
+GET,/login,static,none,none,no,none
+GET,/invite,static,none,none,no,none
+GET,/hosts,static,none,none,no,none
+GET,/activity,static,none,none,no,none
+GET,/users,static,none,none,no,none
+GET,/settings,static,none,none,no,none
+GET,/assets/*,static,none,none,no,none
+GET,/favicon.svg,static,none,none,no,none

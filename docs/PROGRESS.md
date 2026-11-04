@@ -15,6 +15,25 @@
 
 ## 検証証跡
 
+### 順序3: Web画面と主要画面E2E（2026-11-04）
+
+`web/` にReact 19 / TypeScript / Vite+ 1.5.0 / Tailwind v4と、shadcn/uiの方式によるRadixベースの部品で画面を追加した。概要・ホスト・アクティビティ・ユーザーとグループ（ユーザー・グループ・招待）・設定と、初回設定・ログイン・招待受諾を提供する。監視・タスクは対応APIがないため導線を置いていない。ビルド結果はembedでControl Planeに含め、応答ごとのnonce付きCSPで配信する（ADR-013）。`GET /me` に本人のusernameを追加した。
+
+環境: Windows amd64、Go 1.27.3、Node.js 24.22.2、pnpm 12.16.1、Chromium（Playwright 1.64.1）。
+
+| コマンド | 結果 |
+|---|---|
+| pnpm exec vp check（整形・lint・型） | PASS、警告0 |
+| pnpm exec vp test | PASS、9件（権限表示の判定、APIクライアントのCSRF・冪等キー・401処理・エラー表示） |
+| pnpm exec vp build | PASS。HTMLにインラインスクリプトなし |
+| go fmt / gofmt -l cmd internal scripts / go vet / go test -count=1 ./... | PASS。画面配信・nonce・監査付き404・`/me` のusername（再起動後を含む）を追加検証 |
+| Windows / Linux amd64ビルド（-buildvcs=false） | PASS |
+| scripts/check-startup.ps1 | PASS |
+| pnpm exec playwright test | PASS、3件。実バイナリで初回設定からパスワード変更までの主要経路を確認し、CSP違反・ページ内エラーは0件 |
+| pnpm audit | 既知の脆弱性なし。実行時依存のライセンスはMIT・ISC・Apache-2.0・0BSD |
+
+E2Eの範囲はTESTING.mdの「§11・§16.1 画面」。ホスト削除・監視履歴・切断表示・タスク状態は対応APIがないため未検証。Linux上でのE2EとCIの初回実行は未実施。バイナリ配布時に、画面に含まれる依存のライセンス表記を同梱する作業は残っている。
+
 ### 順序0・1の完了確認（2026-11-04）
 
 設計・認可・障害/復旧契約をFOUNDATION_CONTRACT.md、現行全27ルートの認可をAPI_AUTHORIZATION.csv、レビューをFOUNDATION_REVIEW.mdに整理した。chiの全ルートとの一致と、全保護APIの未認証/CSRF欠落拒否を機械検証する。Go検証版を.go-versionとCIで1.27.3へ固定した。
