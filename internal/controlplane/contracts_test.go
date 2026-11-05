@@ -113,7 +113,7 @@ func TestAuthorizationContractCoversEveryRoute(t *testing.T) {
 			body = map[string]any{"operation": "collect"}
 		case strings.HasSuffix(path, "/resolve"):
 			body = map[string]any{"resolution": "failed", "evidence": "checked on the host"}
-		case strings.HasSuffix(path, "/cancel"):
+		case strings.HasSuffix(path, "/cancel"), strings.HasSuffix(path, "/retry"):
 			body = map[string]any{}
 		case path == "/api/v1/audit/retention/run":
 			body = map[string]any{}

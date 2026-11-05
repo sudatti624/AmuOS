@@ -94,3 +94,34 @@ func (s *Server) resolveTask(w http.ResponseWriter, r *http.Request) {
 	}
 	respond(w, 200, task)
 }
+
+// retryTask re-runs a task as a new one that refers to it. Like creation it
+// needs an Idempotency-Key, so a lost response never starts a second retry.
+func (s *Server) retryTask(w http.ResponseWriter, r *http.Request) {
+	if !s.sameOrigin(w, r) {
+		return
+	}
+	key := r.Header.Get("Idempotency-Key")
+	if !store.ValidIdempotencyKey(key) {
+		s.reject(w, r, 400, "idempotency_key_required")
+		return
+	}
+	r = r.WithContext(store.WithIdempotencyKey(r.Context(), key))
+	var body *struct{}
+	if !s.decode(w, r, &body) {
+		return
+	}
+	if body == nil {
+		s.reject(w, r, 400, "invalid_input")
+		return
+	}
+	task, err := s.store.RetryTask(r.Context(), sessionToken(r), r.Header.Get("X-CSRF-Token"), chi.URLParam(r, "id"), s.clock())
+	if err != nil {
+		s.failure(w, r, err)
+		return
+	}
+	if task.Replayed {
+		w.Header().Set("Idempotency-Replayed", "true")
+	}
+	respond(w, 201, task)
+}

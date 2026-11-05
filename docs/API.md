@@ -50,7 +50,7 @@
 
 ## タスク
 
-管理対象ホストへの読み取り専用の作業（現在は `collect` のみ）を永続化する。任意コマンドの入力は受け付けない。Agentは順序5で実装するため、現時点では配送されず、受付期限の60秒を過ぎたタスクは自動処理で `timed_out`（reason: not_dispatched）になる。
+管理対象ホストへの読み取り専用の作業（現在は `collect` のみ）を永続化する。任意コマンドの入力は受け付けない。配送と結果の報告は、下の「Agentの登録と信頼」の節のmTLS APIで行う。受付期限の60秒までにAgentが受け取らなかったタスクは、自動処理で `timed_out`（reason: not_dispatched）になる。
 
 | メソッド・パス | 入力 | 認可・結果 |
 |---|---|---|
@@ -59,8 +59,9 @@
 | GET /tasks/{id} | Cookie | 親ホストのhost.read。範囲外・不存在は404 |
 | POST /tasks/{id}/cancel | Cookie、X-CSRF-Token、`{}` | 親ホストのhost.collect。queuedのみcancelledにする。配送後は実行の有無を確認できないため409 |
 | POST /tasks/{id}/resolve | Cookie、X-CSRF-Token、`{"resolution":"failed","evidence":"…"}`（resolutionはsucceededかfailed、evidenceは1〜500バイト） | 親ホストのhost.manage（Admin）。unknownのみ。根拠を監査に記録し、再実行はしない |
+| POST /tasks/{id}/retry | Cookie、X-CSRF-Token、Idempotency-Key、`{}` | 親ホストのhost.collect。終了したタスクまたはunknownのタスクを、新しいタスクとして再実行する。新しいタスクの `retry_of` に元のID、元のタスクの `retried_by` に新しいIDが入る。元のタスクの状態は変えない（unknownは解決されるまでunknownのまま）。201。同じキーの再要求は同じタスクとIdempotency-Replayed: true。未完了のタスク・すでに再実行したタスク・3回の再実行に達した系列・失効したホストは409、範囲外は404 |
 
-状態は queued・dispatching・running・succeeded・failed・timed_out・cancelled・unknown。範囲外のホスト・タスクは存在しないものと同じ404を返す。作成・取消・解決と監査は同じトランザクションで確定する。
+状態は queued・dispatching・running・succeeded・failed・timed_out・cancelled・unknown。範囲外のホスト・タスクは存在しないものと同じ404を返す。作成・取消・解決・再実行と監査は同じトランザクションで確定する。各タスクは `retry_of`・`retried_by`（なければnull）を持つ。元のタスクが保持期間で削除されたあとも、`retry_of` のIDは残る。
 
 自動処理（毎分）は、受付期限切れのqueuedをtimed_out、実行期限切れのdispatching・runningをunknownにし、終了から30日たったタスクを削除する。unknownは人が解決するまで残す。起動時には前回の停止で結果が分からなくなったdispatching・runningをunknownにする。復元したDBでは、queuedを含む未完了のタスクをすべてunknownにする。終了したタスクを削除したあとは、同じキーで新しいタスクを作れる（読み取り専用のため重複しても副作用はない）。
 

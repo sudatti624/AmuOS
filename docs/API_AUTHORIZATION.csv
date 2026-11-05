@@ -35,6 +35,7 @@ GET,/api/v1/tasks,session,host.read,filtered_hosts,no,none
 GET,/api/v1/tasks/{id},session,host.read,host,no,none
 POST,/api/v1/tasks/{id}/cancel,session,host.collect,host,yes,none
 POST,/api/v1/tasks/{id}/resolve,session,host.manage,host,yes,none
+POST,/api/v1/tasks/{id}/retry,session,host.collect,host,yes,none
 GET,/api/v1/audit,session,audit.read,filtered_events,no,none
 GET,/api/v1/audit/retention,session,audit.read,global,no,none
 GET,/api/v1/monitoring/settings,session,identity.manage,global,no,none

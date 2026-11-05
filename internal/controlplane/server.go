@@ -87,6 +87,7 @@ func newServer(db *store.Store, origin string) (*Server, http.Handler, error) {
 	r.Get("/api/v1/tasks/{id}", s.task)
 	r.Post("/api/v1/tasks/{id}/cancel", s.cancelTask)
 	r.Post("/api/v1/tasks/{id}/resolve", s.resolveTask)
+	r.Post("/api/v1/tasks/{id}/retry", s.retryTask)
 	r.Get("/api/v1/audit", s.events)
 	r.Get("/api/v1/monitoring/settings", s.monitoringPolicy)
 	r.Put("/api/v1/monitoring/settings", s.setMonitoringPolicy)
