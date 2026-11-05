@@ -94,9 +94,18 @@ for _ in $(seq 50); do
   api "$origin/api/v1/hosts" | grep -q '"connected":true' && { connected=yes; break; }
   sleep 0.2
 done
+# The first sync also sends host information and a sample read from /proc.
+monitored=""
+for _ in $(seq 50); do
+  api "$origin/api/v1/hosts/$agent_host" | grep -q '"kernel":"[^"]' &&
+    api "$origin/api/v1/hosts/$agent_host/metrics?range=1h" | grep -q '"times":\[[0-9]' &&
+    { monitored=yes; break; }
+  sleep 0.2
+done
 kill "$agent_pid"; wait "$agent_pid" 2>/dev/null || true
 agent_pid=""
 [ -n "$connected" ] || { echo "::error::FAIL: agent did not connect"; exit 1; }
+[ -n "$monitored" ] || { echo "::error::FAIL: no host information or samples: $(api "$origin/api/v1/hosts/$agent_host" | head -c 300)"; exit 1; }
 stop
 
 # Recovery keys are never supplied as command-line values or printed.

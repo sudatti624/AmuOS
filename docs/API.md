@@ -70,10 +70,25 @@ Agentは登録だけをブラウザ用のポート（既定8443）で行い、�
 | POST /agent/enrollments/{id}/recover | `{"challenge_id","nonce","signature"}` | 登録時の鍵で署名した場合だけ、元の登録結果を返す。失効・削除・更新済みは401 |
 | POST /hosts/{id}/revoke | Cookie、X-CSRF-Token | host.manage。Agentの全資格情報と未使用コードを失効し、queuedのタスクを取り消す。ホストと履歴は残る |
 | DELETE /hosts/{id} | Cookie、X-CSRF-Token | host.manage。失効と同じ処理のうえ、ホストを一覧から外す。監査ログは残る |
-| POST /agent/v1/heartbeat（mTLS） | `{"version","capabilities":[]}` | 自身の状態を更新。`renew_after`（更新を始める時刻）を返す |
+| POST /agent/v1/heartbeat（mTLS） | `{"version","capabilities":[]}` | 自身の状態を更新。`renew_after`（更新を始める時刻）と `sample_interval`（収集間隔の秒数）を返す |
 | POST /agent/v1/credentials/renew（mTLS） | `{"csr"}`（新しい鍵） | 後継の資格情報を発行。同じ要求の再送には同じ後継を返す。旧資格情報は後継が使われた時点、遅くとも24時間後に失効 |
 
 登録系の3つは、ログインと同じ送信元あたり15分に5回の制限を共有する。mTLSの要求はAgentあたり1分に120回まで。最終受信から60秒を過ぎたAgentは `connected: false` と表示する。復元したDBではすべてのAgentの資格情報を失効し、ホストをpendingに戻し、Agent CAを作り直すため、各Agentは新しいコードで登録し直す。
+
+## 監視値とホスト情報
+
+Agentは収集間隔（既定15秒）ごとにLinuxの `/proc` などから監視値を読み、mTLSで送る。ホスト情報は起動時と10分ごとに送る。どちらも、所属ホストは資格情報から決め、要求の内容では指定させない。取得できなかった値は `null` とし、0にしない。
+
+| メソッド・パス | 入力 | 認可・結果 |
+|---|---|---|
+| POST /agent/v1/samples（mTLS） | `{"run_id","samples":[{"seq","collected_at","cpu",…}]}`（1〜120件、64KiBまで） | `(Agent ID, run_id, seq)` で重複を除き、`{"accepted","duplicates","expired"}` を返す。10分（転送の1分を含めて11分）より古いもの、または集約済みの区間に入るものは `expired` として保存しない。1分を超える未来の時刻、範囲外の値（使用率は0〜100、そのほかは0以上）、不明な項目を含むバッチは全体を400で拒否する |
+| POST /agent/v1/host-info（mTLS） | ホスト名・OS・カーネル・CPU・メモリ・ファイルシステム（64件まで）・インターフェース（64件まで）・起動時刻と `collected_at` | 204。受け取ったものより古い取得時刻の情報では上書きしない。制御文字や256バイトを超える文字列は400 |
+| GET /hosts/{id} | Cookie | 対象ホストのhost.read。範囲外・削除済みは404。ホスト、Agent、`info`（取得時刻と受信時刻つき）、`latest`（最新の監視値。受信から60秒を過ぎると `current: false`）、`sample_interval` を返す |
+| GET /hosts/{id}/metrics?range= | Cookie、`range` は1h・6h・24h・7d・30d（省略時1h） | 対象ホストのhost.read。各ステップ（15秒・1分・5分・30分・2時間）の平均・最小・最大を `times` と `series` で返す。データのないステップは `times` に含めないため、画面では欠測として表示し、0で補わない |
+
+監視値の項目は、CPU使用率、負荷（1・5・15分）、メモリ・Swap・ディスク（/）の使用率、ディスクI/Oとネットワークの毎秒バイト数、稼働時間。I/Oは累積値の差分から計算し、最初の値やカウンターの巻き戻り（再起動など）では `null` にする。ネットワークは仮想インターフェースを除き、ディスクはパーティションやdevice-mapperを除いて二重に数えない。
+
+生データは7日、5分単位の集約（件数・最小・最大・平均）は30日保持する。毎分の自動処理が、受け付けうる最も遅い値より前の5分区間を集約し、集約済みかつ保持期間を過ぎた生データだけを削除する。保持期間と収集間隔の設定値はDBにあり、バックアップに含まれる。画面やAPIから変更する手段はまだない。
 
 ## リクエストIDと拒否の監査
 

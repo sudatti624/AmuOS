@@ -17,7 +17,7 @@ var files embed.FS
 
 // Pages are the client-side routes that return the application shell. Other
 // paths keep the server's audited 404 handling.
-var Pages = []string{"/", "/setup", "/login", "/invite", "/hosts", "/activity", "/users", "/settings"}
+var Pages = []string{"/", "/setup", "/login", "/invite", "/hosts", "/hosts/{id}", "/activity", "/users", "/settings"}
 
 // noncePlaceholder is written into index.html by the web build (html.cspNonce).
 const noncePlaceholder = "AMUOS_CSP_NONCE"

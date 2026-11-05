@@ -22,6 +22,8 @@ POST,/api/v1/ownership/transfer,session,owner.manage,global,yes,required
 GET,/api/v1/me,session,self,self,no,none
 GET,/api/v1/hosts,session,host.read,filtered_hosts,no,none
 POST,/api/v1/hosts,session,host.manage,global,yes,none
+GET,/api/v1/hosts/{id},session,host.read,host,no,none
+GET,/api/v1/hosts/{id}/metrics,session,host.read,host,no,none
 DELETE,/api/v1/hosts/{id},session,host.manage,host,yes,none
 POST,/api/v1/hosts/{id}/revoke,session,host.manage,host,yes,none
 POST,/api/v1/hosts/{id}/enrollment,session,host.manage,host,yes,none
@@ -39,11 +41,14 @@ PUT,/api/v1/audit/retention,session,owner.manage,global,yes,required
 POST,/api/v1/audit/retention/run,session,owner.manage,global,yes,required
 POST,/agent/v1/heartbeat,agent_mtls,agent.self,own_host,no,none
 POST,/agent/v1/credentials/renew,agent_mtls,agent.self,own_host,no,none
+POST,/agent/v1/samples,agent_mtls,agent.self,own_host,no,none
+POST,/agent/v1/host-info,agent_mtls,agent.self,own_host,no,none
 GET,/,static,none,none,no,none
 GET,/setup,static,none,none,no,none
 GET,/login,static,none,none,no,none
 GET,/invite,static,none,none,no,none
 GET,/hosts,static,none,none,no,none
+GET,/hosts/{id},static,none,none,no,none
 GET,/activity,static,none,none,no,none
 GET,/users,static,none,none,no,none
 GET,/settings,static,none,none,no,none

@@ -43,6 +43,8 @@ func (s *Server) agentRouter() http.Handler {
 	r.MethodNotAllowed(func(w http.ResponseWriter, r *http.Request) { s.reject(w, r, 405, "method_not_allowed") })
 	r.Post("/agent/v1/heartbeat", s.heartbeat)
 	r.Post("/agent/v1/credentials/renew", s.renewCredential)
+	r.Post("/agent/v1/samples", s.recordSamples)
+	r.Post("/agent/v1/host-info", s.recordHostInfo)
 	return r
 }
 

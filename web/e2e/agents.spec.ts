@@ -44,6 +44,23 @@ test("a real Agent enrolls with a one-time code, connects over mTLS and is revok
   // The code was consumed; the host no longer offers a new one.
   await expect(row.getByRole("button", { name: "登録コード" })).toHaveCount(0);
 
+  await row.getByRole("link", { name: "agent-host" }).click();
+  await expect(page.getByRole("heading", { name: "agent-host", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "履歴" })).toBeVisible();
+  if (process.platform === "linux") {
+    // The Agent reads /proc on Linux; values and charts follow its first sample.
+    await expect(page.getByText("ホスト情報")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText("CPU使用率").first()).toBeVisible();
+    await expect(page.getByRole("img", { name: "メモリ・Swap使用率のグラフ" })).toBeVisible({
+      timeout: 20_000,
+    });
+  } else {
+    await expect(page.getByText("まだ監視値を受信していません。")).toBeVisible();
+  }
+  await page.getByRole("tab", { name: "30日" }).click();
+  await expect(page.getByRole("tab", { name: "30日" })).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("link", { name: "ホスト一覧" }).click();
+
   await row.getByRole("button", { name: "失効" }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "失効する" }).click();
   await expect(row.getByText("失効", { exact: true })).toBeVisible();

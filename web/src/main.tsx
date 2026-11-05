@@ -13,6 +13,7 @@ import { canManageIdentity, canReadAudit, canReadHosts } from "@/lib/permissions
 import { applyTheme, storedTheme } from "@/lib/theme";
 import { ActivityPage } from "@/pages/activity";
 import { InvitePage, LoginPage, SetupPage } from "@/pages/auth";
+import { HostDetailPage } from "@/pages/host-detail";
 import { HostsPage } from "@/pages/hosts";
 import { OverviewPage } from "@/pages/overview";
 import { SettingsPage } from "@/pages/settings";
@@ -66,6 +67,14 @@ createRoot(document.getElementById("root")!).render(
                     element={
                       <Allowed when={canReadHosts}>
                         <HostsPage />
+                      </Allowed>
+                    }
+                  />
+                  <Route
+                    path="/hosts/:id"
+                    element={
+                      <Allowed when={canReadHosts}>
+                        <HostDetailPage />
                       </Allowed>
                     }
                   />

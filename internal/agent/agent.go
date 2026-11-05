@@ -25,16 +25,24 @@ import (
 	"time"
 
 	"github.com/sudatti624/AmuOS/internal/agentca"
+	"github.com/sudatti624/AmuOS/internal/metrics"
+	"github.com/sudatti624/AmuOS/internal/security"
 )
 
 const (
-	identityFile   = "agent.json"
-	credentialFile = "credential.pem"
-	pendingFile    = "enrollment.pem"
-	nextFile       = "renewal.pem"
-	heartbeatEvery = 15 * time.Second
-	maxBackoff     = 60 * time.Second
-	maxResponse    = 256 * 1024
+	identityFile    = "agent.json"
+	credentialFile  = "credential.pem"
+	pendingFile     = "enrollment.pem"
+	nextFile        = "renewal.pem"
+	defaultInterval = 15 * time.Second
+	// Unsent samples are kept for at most this long and this many bytes.
+	maxBufferAge   = 10 * time.Minute
+	maxBufferBytes = 10 << 20
+	infoEvery      = 10 * time.Minute
+	// Half the server limit keeps a batch of long numbers well under 64 KiB.
+	sampleBatch = metrics.MaxBatch / 2
+	maxBackoff  = 60 * time.Second
+	maxResponse = 256 * 1024
 )
 
 // ErrRejected means the Control Plane no longer trusts this Agent (revoked,
@@ -51,6 +59,8 @@ type Config struct {
 	// skip verification.
 	Roots   *x509.CertPool
 	Version string
+	// Collector reads the host; nil uses the platform collector.
+	Collector Collector
 }
 
 type identity struct {
@@ -62,13 +72,33 @@ type identity struct {
 type Agent struct {
 	cfg   Config
 	clock func() time.Time
+
+	// Samples of this run wait in memory until the Control Plane accepts
+	// them. A restart starts a new run, so the server never confuses the
+	// sequence numbers of two runs.
+	runID       string
+	seq         int64
+	pending     []pendingSample
+	pendingSize int
+	dropped     int
+	supported   bool
+	nextInfo    time.Time
+	interval    time.Duration
+}
+
+type pendingSample struct {
+	sample metrics.Sample
+	size   int
 }
 
 func New(cfg Config) (*Agent, error) {
 	if cfg.StateDir == "" || cfg.Roots == nil || !strings.HasPrefix(cfg.Server, "https://") || !strings.HasPrefix(cfg.AgentServer, "https://") {
 		return nil, errors.New("state directory, HTTPS endpoints and trusted roots are required")
 	}
-	return &Agent{cfg: cfg, clock: time.Now}, nil
+	if cfg.Collector == nil {
+		cfg.Collector = NewCollector()
+	}
+	return &Agent{cfg: cfg, clock: time.Now, runID: security.Token(), supported: true, interval: defaultInterval}, nil
 }
 
 func (a *Agent) path(name string) string { return filepath.Join(a.cfg.StateDir, name) }
@@ -326,7 +356,8 @@ func (a *Agent) loadCredential() (tls.Certificate, *x509.Certificate, identity, 
 }
 
 type heartbeatResponse struct {
-	RenewAfter int64 `json:"renew_after"`
+	RenewAfter     int64 `json:"renew_after"`
+	SampleInterval int64 `json:"sample_interval"`
 }
 
 // Beat sends one heartbeat and renews the credential when it is due.
@@ -339,13 +370,16 @@ func (a *Agent) Beat(ctx context.Context) error {
 		return ErrRejected
 	}
 	var result heartbeatResponse
-	err = post(ctx, a.client(&certificate), a.cfg.AgentServer+"/agent/v1/heartbeat", map[string]any{"version": a.cfg.Version, "capabilities": []string{"heartbeat"}}, &result)
+	err = post(ctx, a.client(&certificate), a.cfg.AgentServer+"/agent/v1/heartbeat", map[string]any{"version": a.cfg.Version, "capabilities": a.capabilities()}, &result)
 	var status statusError
 	if errors.As(err, &status) && status.status == http.StatusUnauthorized {
 		return ErrRejected
 	}
 	if err != nil {
 		return err
+	}
+	if result.SampleInterval >= 5 && result.SampleInterval <= 300 {
+		a.interval = time.Duration(result.SampleInterval) * time.Second
 	}
 	if result.RenewAfter > 0 && a.clock().Unix() >= result.RenewAfter {
 		return a.renew(ctx, certificate, id)
@@ -410,23 +444,127 @@ func jitter(d time.Duration) time.Duration {
 
 // Run sends heartbeats until ctx ends. Failures back off exponentially from
 // 1 to 60 seconds with jitter. A rejected credential stops the Agent.
+// Collection keeps its own interval while the Control Plane is unreachable.
 func (a *Agent) Run(ctx context.Context) error {
 	backoff := time.Second
+	var retryAt time.Time
 	for {
-		wait := heartbeatEvery
-		if err := a.Beat(ctx); err != nil {
-			if errors.Is(err, ErrRejected) || ctx.Err() != nil {
-				return err
+		now := a.clock()
+		a.collect(now)
+		if !now.Before(retryAt) {
+			if err := a.sync(ctx); err != nil {
+				if errors.Is(err, ErrRejected) || ctx.Err() != nil {
+					return err
+				}
+				slog.Warn("heartbeat failed", "error", err)
+				retryAt, backoff = now.Add(jitter(backoff)), min(backoff*2, maxBackoff)
+			} else {
+				retryAt, backoff = time.Time{}, time.Second
 			}
-			slog.Warn("heartbeat failed", "error", err)
-			wait, backoff = jitter(backoff), min(backoff*2, maxBackoff)
-		} else {
-			backoff = time.Second
 		}
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-time.After(wait):
+		case <-time.After(a.interval):
 		}
 	}
+}
+
+func (a *Agent) capabilities() []string {
+	if a.supported {
+		return []string{"heartbeat", "metrics", "host_info"}
+	}
+	return []string{"heartbeat"}
+}
+
+// collect takes one sample into the unsent buffer, then drops the oldest
+// samples beyond the age and size limits. Dropped samples leave a gap in the
+// sequence numbers, which the history shows as missing.
+func (a *Agent) collect(now time.Time) {
+	if !a.supported {
+		return
+	}
+	sample, err := a.cfg.Collector.Sample(now)
+	if errors.Is(err, ErrUnsupported) {
+		a.supported = false
+		slog.Warn("metrics are not collected on this platform; only heartbeats are sent")
+		return
+	}
+	if err != nil {
+		slog.Warn("metrics collection failed", "error", err)
+		return
+	}
+	a.seq++
+	sample.Seq = a.seq
+	encoded, err := json.Marshal(sample)
+	if err != nil {
+		return
+	}
+	a.pending = append(a.pending, pendingSample{sample, len(encoded)})
+	a.pendingSize += len(encoded)
+	cutoff := now.Add(-maxBufferAge).Unix()
+	drop := 0
+	for drop < len(a.pending) && (a.pending[drop].sample.CollectedAt < cutoff || a.pendingSize > maxBufferBytes) {
+		a.pendingSize -= a.pending[drop].size
+		drop++
+	}
+	if drop > 0 {
+		a.pending = append([]pendingSample(nil), a.pending[drop:]...)
+		a.dropped += drop
+		slog.Warn("unsent samples dropped", "count", drop, "total", a.dropped)
+	}
+}
+
+// sync sends a heartbeat, then the unsent samples and, when due, host
+// information. A batch the Control Plane refuses as invalid is dropped so
+// it cannot block newer samples.
+func (a *Agent) sync(ctx context.Context) error {
+	if err := a.Beat(ctx); err != nil {
+		return err
+	}
+	certificate, _, _, err := a.loadCredential()
+	if err != nil {
+		return err
+	}
+	client := a.client(&certificate)
+	for len(a.pending) > 0 {
+		n := min(len(a.pending), sampleBatch)
+		batch := make([]metrics.Sample, n)
+		for i := range batch {
+			batch[i] = a.pending[i].sample
+		}
+		err := post(ctx, client, a.cfg.AgentServer+"/agent/v1/samples", map[string]any{"run_id": a.runID, "samples": batch}, nil)
+		if invalid(err) {
+			slog.Warn("control plane refused a sample batch; dropping it", "error", err, "count", n)
+		} else if err != nil {
+			return fmt.Errorf("send samples: %w", err)
+		}
+		for _, p := range a.pending[:n] {
+			a.pendingSize -= p.size
+		}
+		a.pending = append([]pendingSample(nil), a.pending[n:]...)
+	}
+	now := a.clock()
+	if !a.supported || now.Before(a.nextInfo) {
+		return nil
+	}
+	info, err := a.cfg.Collector.HostInfo(now)
+	if err != nil {
+		slog.Warn("host information collection failed", "error", err)
+		a.nextInfo = now.Add(infoEvery)
+		return nil
+	}
+	err = post(ctx, client, a.cfg.AgentServer+"/agent/v1/host-info", info, nil)
+	if invalid(err) {
+		slog.Warn("control plane refused host information", "error", err)
+	} else if err != nil {
+		return fmt.Errorf("send host information: %w", err)
+	}
+	a.nextInfo = now.Add(infoEvery)
+	return nil
+}
+
+func invalid(err error) bool {
+	var status statusError
+	return errors.As(err, &status) && (status.status == http.StatusBadRequest || status.status == http.StatusRequestEntityTooLarge)
 }

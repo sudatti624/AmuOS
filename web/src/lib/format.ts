@@ -26,3 +26,41 @@ export const roleDescriptions: Record<string, string> = {
   Operator: "範囲内のホストの閲覧と収集操作",
   Viewer: "範囲内のホストの閲覧のみ",
 };
+
+const binaryUnits = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
+
+export function formatBytes(bytes: number) {
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < binaryUnits.length - 1) {
+    value /= 1024;
+    unit++;
+  }
+  return `${unit === 0 ? value : value.toFixed(value < 10 ? 1 : 0)} ${binaryUnits[unit]}`;
+}
+
+export function formatRate(bytesPerSecond: number) {
+  return `${formatBytes(bytesPerSecond)}/s`;
+}
+
+export function formatPercent(value: number) {
+  if (Number.isInteger(value)) return `${value}%`;
+  return `${value.toFixed(value < 10 ? 1 : 0)}%`;
+}
+
+export function formatDuration(seconds: number) {
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (days > 0) return `${days}日 ${hours}時間`;
+  if (hours > 0) return `${hours}時間 ${minutes}分`;
+  return `${minutes}分`;
+}
+
+export function formatStep(seconds: number) {
+  return seconds < 60
+    ? `${seconds}秒`
+    : seconds < 3600
+      ? `${seconds / 60}分`
+      : `${seconds / 3600}時間`;
+}

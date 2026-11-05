@@ -332,7 +332,8 @@ func (s *Store) AuthenticateAgent(ctx context.Context, serial, agentID string, n
 }
 
 type HeartbeatResult struct {
-	RenewAfter int64 `json:"renew_after"`
+	RenewAfter     int64 `json:"renew_after"`
+	SampleInterval int64 `json:"sample_interval"`
 }
 
 func (s *Store) Heartbeat(ctx context.Context, serial, agentID, version string, capabilities []string, now time.Time) (HeartbeatResult, error) {
@@ -351,6 +352,9 @@ func (s *Store) Heartbeat(ctx context.Context, serial, agentID, version string, 
 			return err
 		}
 		result.RenewAfter = notAfter - int64(renewalWindow/time.Second)
+		if err := tx.QueryRow("SELECT sample_interval_seconds FROM monitoring_settings WHERE singleton=1").Scan(&result.SampleInterval); err != nil {
+			return err
+		}
 		_, err = tx.Exec("UPDATE agents SET last_seen=?,version=?,capabilities=? WHERE id=?", now.Unix(), version, string(encoded), p.AgentID)
 		return err
 	})

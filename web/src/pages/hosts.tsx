@@ -1,4 +1,5 @@
 import { useCallback, useState, type FormEvent } from "react";
+import { Link } from "react-router";
 import { CopyIcon, KeyRoundIcon, PlusIcon, ShieldOffIcon, Trash2Icon } from "lucide-react";
 import { useConfirm } from "@/app/confirm";
 import { useMe } from "@/app/session";
@@ -197,7 +198,7 @@ function EnrollmentDialog({ host, onClose }: { host: Host; onClose: () => void }
   );
 }
 
-function AgentStatus({ host }: { host: Host }) {
+export function AgentStatus({ host }: { host: Host }) {
   if (host.state === "pending") return <Badge variant="warning">登録待ち</Badge>;
   if (host.state === "revoked") return <Badge variant="destructive">失効</Badge>;
   const agent = host.agent;
@@ -301,7 +302,11 @@ export function HostsPage() {
               const manageable = canManageHost(me.grants, host.id);
               return (
                 <TableRow key={host.id}>
-                  <TableCell className="font-medium">{host.name}</TableCell>
+                  <TableCell className="font-medium">
+                    <Link to={`/hosts/${host.id}`} className="underline-offset-4 hover:underline">
+                      {host.name}
+                    </Link>
+                  </TableCell>
                   <TableCell>
                     <AgentStatus host={host} />
                   </TableCell>

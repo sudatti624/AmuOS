@@ -15,6 +15,12 @@
 
 ## 検証証跡
 
+### 順序5: 監視値・ホスト情報・履歴（2026-11-05）
+
+スキーマv11（monitoring_settings・host_info・metric_samples・metric_rollups）と `internal/metrics` を追加した。Agentが `/proc` などから監視値とホスト情報を集め、未送信分を最大10分・10MiB保持して送る。Control Planeは重複を除いて保存し、毎分5分単位に集約し、生データ7日・集約30日で削除する（ADR-020、API.md「監視値とホスト情報」）。ホスト詳細画面（現在の値、ホスト情報、ディスク・ネットワーク、1時間〜30日の履歴グラフ）を追加した。認可表は API 40・Agent 4・画面配信11。
+
+Windows amd64 / Go 1.27.3でgo fmt/vet/testがPASS。Webのvp check・単体13件・build、PlaywrightのE2E 5件がPASS。Windowsでは監視値を集めないため、実際の値の表示はLinuxのCI（E2Eと配布物の導入確認）で確かめる。画面の見た目は、試験用の値を入れた一時的な環境で確認した（コミットしていない）。
+
 ### 順序5: Agentの登録とmTLS（2026-11-05）
 
 `internal/agentca`（Agent CA）、スキーマv10（agents・agent_credentials・enrollments・enrollment_challenges）、`internal/agent` と `cmd/agent`（amuos-agent）を追加した。登録コードの発行、一回限りの登録、応答喪失時の回復、mTLS専用リスナーでのハートビート、資格情報の自動更新、ホストの失効・削除、復元時のCA作り直しと全資格情報の失効を実装した（ADR-019、API.md「Agentの登録と信頼」）。ホスト画面に登録コードの発行、Agentの接続状態、失効・削除を追加した。認可表は API 38・Agent 2・画面配信10。配布物に `amuos-agent` とAgentのsystemdユニットを追加した。

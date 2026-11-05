@@ -73,6 +73,8 @@ func newServer(db *store.Store, origin string) (*Server, http.Handler, error) {
 	r.Get("/api/v1/me", s.identity)
 	r.Get("/api/v1/hosts", s.hosts)
 	r.Post("/api/v1/hosts", s.createHost)
+	r.Get("/api/v1/hosts/{id}", s.hostDetail)
+	r.Get("/api/v1/hosts/{id}/metrics", s.metricHistory)
 	r.Delete("/api/v1/hosts/{id}", s.changeHost(db.DeleteHost))
 	r.Post("/api/v1/hosts/{id}/revoke", s.changeHost(db.RevokeHost))
 	r.Post("/api/v1/hosts/{id}/enrollment", s.createEnrollment)
@@ -140,11 +142,15 @@ func (s *Server) failure(w http.ResponseWriter, r *http.Request, err error) {
 }
 
 func (s *Server) decode(w http.ResponseWriter, r *http.Request, value any) bool {
+	return s.decodeLimit(w, r, value, 16*1024)
+}
+
+func (s *Server) decodeLimit(w http.ResponseWriter, r *http.Request, value any, limit int64) bool {
 	if strings.Split(r.Header.Get("Content-Type"), ";")[0] != "application/json" {
 		s.reject(w, r, 415, "json_required")
 		return false
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, 16*1024)
+	r.Body = http.MaxBytesReader(w, r.Body, limit)
 	d := json.NewDecoder(r.Body)
 	d.DisallowUnknownFields()
 	if err := d.Decode(value); err != nil {

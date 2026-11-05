@@ -46,6 +46,82 @@ export interface Host {
   agent?: AgentInfo | null;
 }
 
+export interface Filesystem {
+  mount: string;
+  type: string;
+  total_bytes: number | null;
+  used_bytes: number | null;
+}
+
+export interface NetworkInterface {
+  name: string;
+  addresses: string[];
+}
+
+// Empty text and null numbers mean the Agent could not read the value.
+export interface HostInfo {
+  collected_at: number;
+  received_at: number;
+  hostname: string;
+  os: string;
+  kernel: string;
+  arch: string;
+  cpu_model: string;
+  cpu_count: number | null;
+  memory_bytes: number | null;
+  swap_bytes: number | null;
+  boot_time: number | null;
+  filesystems: Filesystem[];
+  interfaces: NetworkInterface[];
+}
+
+export const metricNames = [
+  "cpu",
+  "load1",
+  "load5",
+  "load15",
+  "memory",
+  "swap",
+  "disk",
+  "disk_read",
+  "disk_write",
+  "net_rx",
+  "net_tx",
+] as const;
+
+export type MetricName = (typeof metricNames)[number];
+
+export type Sample = { [K in MetricName]: number | null } & {
+  seq: number;
+  collected_at: number;
+  received_at: number;
+  uptime: number | null;
+  // False once the value is too old to show as the present state.
+  current: boolean;
+};
+
+export interface HostDetail extends Host {
+  info: HostInfo | null;
+  latest: Sample | null;
+  sample_interval: number;
+}
+
+export interface Series {
+  avg: (number | null)[];
+  min: (number | null)[];
+  max: (number | null)[];
+}
+
+// Only steps with data are listed; a missing step is a gap.
+export interface History {
+  range: string;
+  step: number;
+  from: number;
+  to: number;
+  times: number[];
+  series: Record<MetricName, Series>;
+}
+
 export interface Enrollment {
   id: string;
   host_id: string;
