@@ -16,6 +16,7 @@ import (
 
 	"github.com/sudatti624/AmuOS/internal/controlplane"
 	"github.com/sudatti624/AmuOS/internal/maintenance"
+	"github.com/sudatti624/AmuOS/internal/statelock"
 	"github.com/sudatti624/AmuOS/internal/store"
 )
 
@@ -46,6 +47,11 @@ func run() error {
 			return err
 		}
 	}
+	stateLock, err := statelock.Acquire(*dbPath)
+	if err != nil {
+		return err
+	}
+	defer stateLock.Close()
 	db, err := store.Open(*dbPath)
 	if err != nil {
 		return err
