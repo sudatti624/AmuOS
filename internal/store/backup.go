@@ -6,11 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
-	"path/filepath"
 	"reflect"
-	"strings"
 	"time"
 
 	"modernc.org/sqlite"
@@ -98,23 +95,11 @@ func (s *Store) ReplaceFrom(ctx context.Context, source string) error {
 // ValidateSnapshot does not create, migrate, or write to the inspected DB.
 // Exact schema comparison also rejects triggers/views smuggled into an archive.
 func ValidateSnapshot(ctx context.Context, path string) error {
-	absolute, err := filepath.Abs(path)
-	if err != nil {
-		return err
-	}
-	uriPath := filepath.ToSlash(absolute)
-	if !strings.HasPrefix(uriPath, "/") {
-		uriPath = "/" + uriPath
-	}
-	u := url.URL{Scheme: "file", Path: uriPath}
-	query := url.Values{"mode": {"ro"}}
-	u.RawQuery = query.Encode()
-	db, err := sql.Open("sqlite", u.String())
+	db, err := openReadOnly(path)
 	if err != nil {
 		return err
 	}
 	defer db.Close()
-	db.SetMaxOpenConns(1)
 	var version int
 	if err := db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
 		return err

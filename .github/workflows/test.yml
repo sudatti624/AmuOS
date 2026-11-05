@@ -73,6 +73,18 @@ jobs:
         env:
           VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('dev-{0}', github.sha) }}
         run: bash scripts/package.sh "$VERSION"
+      # A second build with another version string, used only to check updates.
+      - name: Build update-check binary
+        working-directory: .
+        env:
+          CGO_ENABLED: '0'
+          VERSION: ${{ format('check-{0}', github.sha) }}
+        run: go build -trimpath -ldflags "-s -w -X main.version=$VERSION" -o dist/update-check/amuos-controlplane ./cmd/controlplane
+      - uses: actions/upload-artifact@v5
+        with:
+          name: update-check
+          path: dist/update-check/amuos-controlplane
+          retention-days: 7
       - uses: actions/upload-artifact@v5
         with:
           name: linux-amd64
@@ -93,6 +105,12 @@ jobs:
           path: release
       - run: cd release && sha256sum -c SHA256SUMS
       - run: bash scripts/smoke-install.sh release/*.tar.gz
+      - uses: actions/download-artifact@v5
+        with:
+          name: update-check
+          path: update-check
+      - name: Install as a systemd service, update and roll back
+        run: sudo bash scripts/smoke-systemd.sh release/*.tar.gz update-check/amuos-controlplane
 
   install-debian:
     needs: web

@@ -8,7 +8,7 @@
 - Go 1.27系（検証1.27.3）、chi v5.5.0、modernc.org/sqlite v1.61.1、x/crypto v0.58.0。正確な推移依存はgo.mod/go.sumを基準とする。DBはWAL・外部キー有効・busy_timeout 5秒・単一接続。未適用移行全体を一つのトランザクションで適用する。
 - Frontendは仕様のReact / TypeScript / Vite+ / Tailwind v4 / shadcn/uiを維持する。依存導入とlockfile・ビルド・画面/E2Eは順序3。今回の設計完了をFrontend導入済みとは扱わない。
 - sqlcでの生成・goose実行基盤の統合は、既存の原子的移行・クエリ契約を維持して順序4の配布/移行整備で検証する。現時点の実行方式は組込みSQLとuser_versionで確定しており、未導入ツールを実行前提にしない。
-- Linux配布はtar.gz、実行ファイル `/usr/local/bin/amuos-controlplane`・`amuos-agent`、設定 `/etc/amuos`、状態 `/var/lib/amuos`、ロック `/run/amuos`。状態ディレクトリ0700、鍵/DB0600、専用実行ユーザー。導入・systemdと手動更新の実装/OS実証は順序4。
+- Linux配布はtar.gz、実行ファイル `/usr/local/bin/amuos-controlplane`・`amuos-agent`、設定 `/etc/amuos`、状態 `/var/lib/amuos`、ロック `/var/lib/amuos/.amuos.lock`（DBの親ディレクトリ）。状態ディレクトリ0700、鍵/DB0600、専用実行ユーザー。systemdユニットと手動更新・切り戻しの手順はINSTALL.md（ADR-017）。実機での長時間運転と独立環境の実証は順序6。
 - シークレット保存はAES-256-GCM、32バイトのデータ鍵と値ごとの乱数nonceを使用する。鍵IDと形式版を保存し、鍵ファイルはDBと分離する。現在のパスワードはArgon2id、トークン類はSHA-256であり、復号可能な形で保存しない。
 
 ## 信頼境界・権限

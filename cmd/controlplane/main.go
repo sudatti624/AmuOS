@@ -38,15 +38,16 @@ func run() error {
 	restore := flag.String("restore-from", "", "restore a verified age backup and exit (server must be stopped)")
 	recoveryKey := flag.String("recovery-key-file", "", "private file containing one age X25519 recovery identity")
 	generateKey := flag.String("generate-recovery-key", "", "write a new private recovery key to a new file and print only its public recipient")
+	checkDB := flag.Bool("check-db", false, "check without writing whether this binary can start with the existing database, then exit (server must be stopped)")
 	flag.Parse()
 	modes := 0
-	for _, enabled := range []bool{*showVersion, *bootstrap != "", *backup != "", *restore != "", *generateKey != ""} {
+	for _, enabled := range []bool{*showVersion, *bootstrap != "", *backup != "", *restore != "", *generateKey != "", *checkDB} {
 		if enabled {
 			modes++
 		}
 	}
 	if modes > 1 || (*recipient != "" && *backup == "") || (*recoveryKey != "" && *restore == "") || (*backup != "" && *recipient == "") || (*restore != "" && *recoveryKey == "") {
-		return errors.New("choose one mode: server, version, bootstrap, key generation, backup with recipient, or restore with recovery key file")
+		return errors.New("choose one mode: server, version, database check, bootstrap, key generation, backup with recipient, or restore with recovery key file")
 	}
 	if flag.NArg() != 0 {
 		return errors.New("unexpected positional arguments")
@@ -62,6 +63,25 @@ func run() error {
 		}
 		fmt.Println(recipient)
 		return nil
+	}
+	if *checkDB {
+		// Check before locking so a mistyped path does not create a state directory.
+		if _, err := os.Lstat(*dbPath); err != nil {
+			return err
+		}
+		stateLock, err := statelock.Acquire(*dbPath)
+		if err != nil {
+			return err
+		}
+		defer stateLock.Close()
+		check, err := store.CheckUpdate(context.Background(), *dbPath)
+		if err != nil {
+			return err
+		}
+		return json.NewEncoder(os.Stdout).Encode(struct {
+			ProductVersion string `json:"product_version"`
+			store.UpdateCheck
+		}{version, check})
 	}
 	if *backup != "" || *restore != "" {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

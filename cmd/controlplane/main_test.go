@@ -135,3 +135,33 @@ func TestMaintenanceModesAndCLIRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestCheckDBDoesNotCreateOrShareState(t *testing.T) {
+	root := t.TempDir()
+	database := filepath.Join(root, "state", "amuos.db")
+	if err := runWithArgs(t, "--db", database, "--check-db"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("missing database: %v", err)
+	}
+	if _, err := os.Stat(filepath.Dir(database)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("check created a state directory")
+	}
+	if err := runWithArgs(t, "--check-db", "--version"); err == nil {
+		t.Fatal("accepted two modes")
+	}
+	if err := runWithArgs(t, "--db", database, "--bootstrap-file", filepath.Join(root, "setup-token")); err != nil {
+		t.Fatal(err)
+	}
+	acquired, err := statelock.Acquire(database)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := runWithArgs(t, "--db", database, "--check-db"); !errors.Is(err, statelock.ErrLocked) {
+		t.Fatalf("check ran while the state was in use: %v", err)
+	}
+	if err := acquired.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := runWithArgs(t, "--db", database, "--check-db"); err != nil {
+		t.Fatal(err)
+	}
+}
