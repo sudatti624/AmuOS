@@ -49,6 +49,10 @@ Proxmox VE、Cockpit、Grafana、Portainer、FileBrowserなどのOSSを参考に
 - Debian Stable
 - Linux amd64
 
+v0.3のあとに対応する：
+
+- Windows amd64（Control PlaneとAgent）。WSLや仮想マシンを使えない環境でも試せるようにする。Windowsサービスとしての常駐、Agentの監視値・ホスト情報のWindowsでの取得、鍵・状態ファイルの保護（NTFSのアクセス制御）、導入・更新・切り戻し・アンインストールの手順を対象とし、具体的な設計はADRで定める。systemd状態の取得など、Linuxにしかない機能はWindowsでは「対応していない」と表示し、0や空の値で代用しない
+
 将来的に対応を検討：
 
 - Linux arm64
