@@ -44,6 +44,9 @@ func (s *Server) agentRouter() http.Handler {
 	r.Post("/agent/v1/heartbeat", s.heartbeat)
 	r.Post("/agent/v1/credentials/renew", s.renewCredential)
 	r.Post("/agent/v1/samples", s.recordSamples)
+	r.Post("/agent/v1/tasks/poll", s.pollTasks)
+	r.Post("/agent/v1/tasks/{id}/result", s.taskResult)
+	r.Post("/agent/v1/systemd", s.recordSystemd)
 	r.Post("/agent/v1/host-info", s.recordHostInfo)
 	return r
 }

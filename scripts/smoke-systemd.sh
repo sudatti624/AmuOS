@@ -79,6 +79,43 @@ add_host "$csrf" before-update
 [ "$(stat -c '%U %a' "$db")" = "amuos 600" ] || fail "database permissions"
 [ "$(stat -c '%U %a' /etc/amuos/tls/server-key.pem)" = "root 600" ] || fail "TLS key permissions"
 
+
+# Exercise the shipped Agent sandbox, including AF_NETLINK and system D-Bus.
+agent_binary=$(find "$work" -type f -name amuos-agent | head -n 1)
+[ -n "$agent_binary" ] || fail "missing Agent binary"
+useradd --system --home-dir /var/lib/amuos-agent --no-create-home --shell /usr/sbin/nologin amuos-agent
+install -m 755 "$agent_binary" /usr/local/bin/amuos-agent
+install -d -m 755 /etc/amuos-agent
+install -m 644 /etc/amuos/tls/server.pem /etc/amuos-agent/server-ca.pem
+printf 'AMUOS_SERVER=https://localhost:8443\nAMUOS_AGENT_SERVER=https://localhost:9443\n' > /etc/amuos-agent/agent.env
+install -m 644 "$(dirname "$agent_binary")/packaging/amuos-agent.service" /etc/systemd/system/amuos-agent.service
+install -d -m 700 -o amuos-agent -g amuos-agent /var/lib/amuos-agent
+agent_host=$(api "$origin/api/v1/hosts" | python3 -c 'import json,sys; print(next(h["id"] for h in json.load(sys.stdin)["items"] if h["name"]=="before-update"))')
+api -X POST "$origin/api/v1/hosts/$agent_host/enrollment" -H "X-CSRF-Token: $csrf" -d '{}' | python3 -c 'import json,sys; print(json.load(sys.stdin)["code"])' > /var/lib/amuos-agent/code
+chown amuos-agent:amuos-agent /var/lib/amuos-agent/code
+chmod 600 /var/lib/amuos-agent/code
+runuser -u amuos-agent -- /usr/local/bin/amuos-agent --state-dir /var/lib/amuos-agent --server "$origin" --agent-server https://localhost:9443 --ca-file /etc/amuos-agent/server-ca.pem --enroll-code-file /var/lib/amuos-agent/code || fail "Agent registration"
+rm /var/lib/amuos-agent/code
+systemctl daemon-reload
+systemctl start amuos-agent
+for _ in $(seq 60); do
+  if api "$origin/api/v1/hosts/$agent_host" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["latest"]["net_rx"] is not None; assert d["info"]["interfaces"]' 2>/dev/null; then break; fi
+  sleep 1
+done
+api "$origin/api/v1/hosts/$agent_host" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["latest"]["net_rx"] is not None; assert d["info"]["interfaces"]' || fail "Agent metrics under sandbox (AF_NETLINK)"
+api "$origin/api/v1/hosts/$agent_host/systemd" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["available"]; assert any(u["unit"]=="amuos-agent.service" for u in d["units"])' || fail "systemd state under Agent sandbox"
+task_id=$(api -X POST "$origin/api/v1/hosts/$agent_host/tasks" -H "X-CSRF-Token: $csrf" -H "Idempotency-Key: sandbox-collect-$(date +%s%N)" -d '{"operation":"collect"}' | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+for _ in $(seq 45); do
+  if api "$origin/api/v1/tasks/$task_id" | grep -q '"state":"succeeded"'; then break; fi
+  sleep 1
+done
+api "$origin/api/v1/tasks/$task_id" | grep -q '"state":"succeeded"' || fail "collect delivery under Agent sandbox"
+systemctl stop amuos-agent
+systemctl is-active --quiet amuos-controlplane || fail "stopping Agent affected Control Plane"
+wait_ready
+systemctl disable amuos-agent 2>/dev/null || true
+rm /etc/systemd/system/amuos-agent.service
+systemctl daemon-reload
 systemctl restart amuos-controlplane
 wait_ready
 csrf=$(login)

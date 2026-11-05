@@ -1,3 +1,4 @@
+import { SystemdState } from "./systemd-state";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router";
 import { ArrowLeftIcon } from "lucide-react";
@@ -311,6 +312,7 @@ export function HostDetailPage() {
             </p>
           )}
           {host.latest && <CurrentValues latest={host.latest} info={host.info} />}
+          <SystemdState hostId={host.id} />
           {host.info && (
             <div className="grid gap-3 lg:grid-cols-2">
               <InfoCard detail={host} info={host.info} />

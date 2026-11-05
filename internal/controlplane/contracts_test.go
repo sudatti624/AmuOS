@@ -105,6 +105,8 @@ func TestAuthorizationContractCoversEveryRoute(t *testing.T) {
 			body = map[string]any{"user_id": "other-user"}
 		case path == "/api/v1/audit/retention":
 			body = map[string]any{"retention_days": 180}
+		case path == "/api/v1/monitoring/settings":
+			body = map[string]any{"sample_interval_seconds": 15, "raw_retention_days": 7, "rollup_retention_days": 30}
 		case strings.HasSuffix(path, "/enrollment"):
 			body = map[string]any{"ttl_minutes": 10}
 		case strings.HasSuffix(path, "/tasks"):

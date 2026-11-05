@@ -448,9 +448,13 @@ func jitter(d time.Duration) time.Duration {
 func (a *Agent) Run(ctx context.Context) error {
 	backoff := time.Second
 	var retryAt time.Time
+	var nextSample time.Time
 	for {
 		now := a.clock()
-		a.collect(now)
+		if !now.Before(nextSample) {
+			a.collect(now)
+			nextSample = now.Add(a.interval)
+		}
 		if !now.Before(retryAt) {
 			if err := a.sync(ctx); err != nil {
 				if errors.Is(err, ErrRejected) || ctx.Err() != nil {
@@ -465,7 +469,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-time.After(a.interval):
+		case <-time.After(min(a.interval, 15*time.Second)):
 		}
 	}
 }
@@ -520,6 +524,9 @@ func (a *Agent) collect(now time.Time) {
 // it cannot block newer samples.
 func (a *Agent) sync(ctx context.Context) error {
 	if err := a.Beat(ctx); err != nil {
+		return err
+	}
+	if err := a.syncTasks(ctx); err != nil {
 		return err
 	}
 	certificate, _, _, err := a.loadCredential()

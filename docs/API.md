@@ -1,5 +1,11 @@
 # API契約
 
+## 監視設定
+
+`GET /api/v1/monitoring/settings` と `PUT /api/v1/monitoring/settings` は全体範囲のOwner/Adminに限定する。変更はOrigin・CSRFを必須とし、変更前後の設定と監査を同じDBトランザクションで確定する。再認証は不要。
+
+本文は `sample_interval_seconds`（5〜300）、`raw_retention_days`（1〜30）、`rollup_retention_days`（7〜400）の整数3項目を必須とする。集約保持期間は生データ以上とする。欠落・null・未知フィールド・不正な値を拒否する。収集間隔は次のAgentハートビートで通知し、保持設定は次の定期処理から適用する。保持期間を延ばしても削除済みデータは回復しない。
+
 基準: 仕様v0.4 §10、§12。HTTPS JSON、ルート `/api/v1`。秘密値をクエリパラメーターに含めない。
 
 | メソッド・パス | 入力 | 認可・結果 |
@@ -187,3 +193,11 @@ Owner追加・解除では他の非Owner割当を維持する。状態が既に�
 `GET /`、`/setup`、`/login`、`/invite`、`/hosts`、`/activity`、`/users`、`/settings` は画面の共通HTMLを返し、`/assets/*` と `/favicon.png` はビルド済みファイルを返す。いずれも認証不要で、データを含まない。データの取得・変更は上記のAPIで認可する。これ以外のパスは従来どおり404で、`http.reject` を監査する。
 
 HTMLの応答は `Cache-Control: no-store` と、応答ごとのnonceを含むCSPを返す。`/assets/` のファイル名は内容のハッシュを含むため、長期キャッシュを許可する。画面を含めずにビルドしたバイナリは、画面のページに503と案内文を返す。
+
+## Agentタスク配送とsystemd状態
+
+POST /agent/v1/tasks/poll は {} で資格情報の所属ホストのタスクを取得する。応答のtaskは未配送がなければnull。配送はid、attempt_id、input_hash、operation=collect、accept_deadline、run_deadlineを含む。受付確認は {"receipt":{"id":"...","attempt_id":"...","input_hash":"..."}} を送る。
+
+POST /agent/v1/tasks/{id}/result はid、attempt_id、input_hash、outcome（succeeded/failed/unknown）を送り、acknowledged=trueが受領確認となる。同一結果の再送は成功し、異なる結果は409、別ホストの試行は404。受付期限切れの新規配送は行わない。実行期限後の結果はunknownとして保持する。状態遷移・監査は同じトランザクションで確定する。
+
+POST /agent/v1/systemd はcollected_at、available、truncated、units（unit/load/active/sub）を送る。所属ホストは資格情報から決定する。GET /api/v1/hosts/{id}/systemd は親ホストのhost.read範囲に限定し、received_atを加えた最終状態、未受信ならnullを返す。失効後の書込みは拒否する。変更操作は提供しない。

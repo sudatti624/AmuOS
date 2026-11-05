@@ -14,6 +14,12 @@
 - OSS公開準備: Apache-2.0のLICENSE、CONTRIBUTING.md、SECURITY.md、README整備、モジュール名を `github.com/sudatti624/AmuOS` へ変更。変更後のgo fmt/vet/test・Windows/Linuxビルドを再実行しPASS（`-buildvcs=false`）。
 
 ## 検証証跡
+### 順序5・区切り3: タスク配送とsystemd状態
+
+スキーマv12にtask_attemptsとsystemd_statesを追加し、backupTablesへ登録。mTLSのpoll/result、実行前の最新認可、同じ試行の再配送、Agentの実行前・結果・ACKの永続記録を実装した。実行中の再起動・期限切れ・確認できない通信結果はunknownとし、自動再実行しない。systemdは無特権systemctlの読取りで、状態だけを取得時刻・受信時刻とともに保存し、ホスト詳細に表示する。API43・Agent7・画面配信11。Agentユニットでの登録・監視値・systemd状態・collect・停止時のControl Plane生存確認をCIへ追加した。CI実行結果は確認中。
+### 順序5・区切り3: 監視設定（途中）
+
+監視の収集間隔・生データ保持・集約保持の変更APIと設定画面を追加した。全体Owner/Adminに限定し、更新と前後の監査を原子的に確定する。既存テーブルを利用するため移行追加はない。API 42・Agent 4・画面配信11。WindowsでGo全テスト、Windows/Linux vet、Web check・単体13件・buildが成功。タスク配送・systemd状態・AgentユニットのCI拡張は未実装で、区切り3全体は未完了。
 
 ### 順序5: 監視値・ホスト情報・履歴（2026-11-05）
 

@@ -13,6 +13,7 @@ import { api, errorMessage, passwordBytes, type Retention, type RetentionRun } f
 import { formatTime } from "@/lib/format";
 import { canReadAuditSettings, isOwner } from "@/lib/permissions";
 import { saveTheme, storedTheme, type Theme } from "@/lib/theme";
+import { MonitoringSettingsCard } from "./monitoring-settings";
 
 function ThemeCard() {
   const [theme, setTheme] = useState<Theme>(storedTheme);
@@ -265,6 +266,7 @@ export function SettingsPage() {
         <ThemeCard />
         <PasswordCard />
         {canReadAuditSettings(me.grants) && <RetentionCard />}
+        {canReadAuditSettings(me.grants) && <MonitoringSettingsCard />}
       </div>
     </>
   );
