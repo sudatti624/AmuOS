@@ -49,7 +49,9 @@ test("a real Agent enrolls with a one-time code, connects over mTLS and is revok
   await expect(page.getByRole("heading", { name: "履歴" })).toBeVisible();
   if (process.platform === "linux") {
     // The Agent reads /proc on Linux; values and charts follow its first sample.
-    await expect(page.getByText("ホスト情報")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole("heading", { name: "ホスト情報" })).toBeVisible({
+      timeout: 20_000,
+    });
     await expect(page.getByText("CPU使用率").first()).toBeVisible();
     await expect(page.getByRole("img", { name: "メモリ・Swap使用率のグラフ" })).toBeVisible({
       timeout: 20_000,
