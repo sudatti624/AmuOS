@@ -57,6 +57,7 @@ jobs:
         run: |
           go test ./internal/controlplane/
           go build -o dist/controlplane ./cmd/controlplane
+          go build -o dist/agent ./cmd/agent
           go build -o dist/devcert ./scripts/devcert
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm exec playwright test

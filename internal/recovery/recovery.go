@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"filippo.io/age"
+	"github.com/sudatti624/AmuOS/internal/agentca"
 	"github.com/sudatti624/AmuOS/internal/statelock"
 	"github.com/sudatti624/AmuOS/internal/store"
 )
@@ -481,6 +483,11 @@ func Restore(ctx context.Context, database, archive, keyFile, version string) (r
 	}
 	if err := db.ReplaceFrom(ctx, snapshot); err != nil {
 		return result, err
+	}
+	// Restored credentials are already revoked; removing the CA also makes a
+	// new one sign every future credential (specification §14.5).
+	if err := agentca.Remove(filepath.Dir(database)); err != nil {
+		return result, fmt.Errorf("database restored, but remove the agent CA files before starting: %w", err)
 	}
 	result.Backup, result.Config = manifest, config
 	return result, nil

@@ -33,8 +33,8 @@ test("invitation, permission-based display, API denial and live permission chang
   await owner.getByRole("button", { name: "登録枠を追加" }).click();
   await owner.getByLabel("表示名").fill("web-01");
   await owner.getByRole("button", { name: "追加", exact: true }).click();
-  await expect(owner.getByRole("cell", { name: "web-01" })).toBeVisible();
-  await expect(owner.getByText("登録待ち（Agent未接続）")).toBeVisible();
+  await expect(owner.getByRole("cell", { name: "web-01", exact: true })).toBeVisible();
+  await expect(owner.getByText("登録待ち", { exact: true })).toBeVisible();
 
   // Invite a Viewer for all hosts.
   await nav(owner).getByRole("link", { name: "ユーザーとグループ" }).click();
@@ -61,7 +61,7 @@ test("invitation, permission-based display, API denial and live permission chang
   await expect(nav(member).getByRole("link", { name: "ユーザーとグループ" })).toHaveCount(0);
   await expect(nav(member).getByRole("link", { name: "アクティビティ" })).toHaveCount(0);
   await nav(member).getByRole("link", { name: "ホスト" }).click();
-  await expect(member.getByRole("cell", { name: "web-01" })).toBeVisible();
+  await expect(member.getByRole("cell", { name: "web-01", exact: true })).toBeVisible();
   await expect(member.getByRole("button", { name: "登録枠を追加" })).toHaveCount(0);
   await member.goto(`${server.origin}/users`);
   await expect(

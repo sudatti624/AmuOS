@@ -7,7 +7,8 @@ set -euo pipefail
 archive="$(realpath "${1:?usage: scripts/smoke-install.sh <archive.tar.gz>}")"
 work="$(mktemp -d)"
 pid=""
-trap '[ -n "$pid" ] && kill "$pid" 2>/dev/null; rm -rf "$work"' EXIT
+agent_pid=""
+trap '[ -n "$pid" ] && kill "$pid" 2>/dev/null; [ -n "$agent_pid" ] && kill "$agent_pid" 2>/dev/null; rm -rf "$work"' EXIT
 cd "$work"
 
 tar -xzf "$archive"
@@ -72,6 +73,29 @@ start
 csrf=$(login)
 [ -n "$csrf" ] || { echo "FAIL: login after restart" >&2; exit 1; }
 api "$origin/api/v1/hosts" | grep -q '"name":"smoke-host"' || { echo "FAIL: host after restart" >&2; exit 1; }
+
+# Enroll a real Agent with a one-time code, then let it reach the mTLS port.
+agent_host=$(api -X POST "$origin/api/v1/hosts" -H "X-CSRF-Token: $csrf" -H "Idempotency-Key: agent-$(date +%s%N)" \
+  -d '{"name":"agent-host"}' | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+[ -n "$agent_host" ] || { echo "FAIL: agent host" >&2; exit 1; }
+(umask 077; api -X POST "$origin/api/v1/hosts/$agent_host/enrollment" -H "X-CSRF-Token: $csrf" -d '{}' |
+  sed -n 's/.*"code":"\([^"]*\)".*/\1/p' > agent-code)
+[ -s agent-code ] || { echo "FAIL: enrollment code" >&2; exit 1; }
+agent() {
+  ./amuos-agent --state-dir agent-state --server https://127.0.0.1:8443 \
+    --agent-server https://127.0.0.1:9443 --ca-file data/server.pem "$@"
+}
+agent --enroll-code-file agent-code
+rm agent-code
+agent &
+agent_pid=$!
+connected=""
+for _ in $(seq 50); do
+  api "$origin/api/v1/hosts" | grep -q '"connected":true' && { connected=yes; break; }
+  sleep 0.2
+done
+kill "$agent_pid"; wait "$agent_pid" 2>/dev/null || true
+[ -n "$connected" ] || { echo "FAIL: agent did not connect" >&2; exit 1; }
 stop
 
 # Recovery keys are never supplied as command-line values or printed.
@@ -112,6 +136,12 @@ csrf=$(login)
 [ -n "$csrf" ] || { echo "FAIL: login after restore" >&2; exit 1; }
 api "$origin/api/v1/hosts" | grep -q '"name":"smoke-host"' || { echo "FAIL: host after restore" >&2; exit 1; }
 api "$origin/api/v1/audit" | grep -q 'restore.complete' || { echo "FAIL: restore audit" >&2; exit 1; }
+# A restore issues a new Agent CA, so the restored Agent credential is refused.
+if timeout 10 ./amuos-agent --state-dir agent-state --server https://127.0.0.1:8443 \
+  --agent-server https://127.0.0.1:9443 --ca-file data/server.pem 2>/dev/null; then
+  echo "FAIL: agent credential survived the restore" >&2; exit 1
+fi
+api "$origin/api/v1/hosts" | grep -q '"name":"agent-host","state":"pending"' || { echo "FAIL: agent host after restore" >&2; exit 1; }
 stop
 
 echo "PASS: install, setup, login, host, restart, encrypted backup and restore"

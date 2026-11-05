@@ -15,6 +15,14 @@
 
 ## 検証証跡
 
+### 順序5: Agentの登録とmTLS（2026-11-05）
+
+`internal/agentca`（Agent CA）、スキーマv10（agents・agent_credentials・enrollments・enrollment_challenges）、`internal/agent` と `cmd/agent`（amuos-agent）を追加した。登録コードの発行、一回限りの登録、応答喪失時の回復、mTLS専用リスナーでのハートビート、資格情報の自動更新、ホストの失効・削除、復元時のCA作り直しと全資格情報の失効を実装した（ADR-019、API.md「Agentの登録と信頼」）。ホスト画面に登録コードの発行、Agentの接続状態、失効・削除を追加した。認可表は API 38・Agent 2・画面配信10。配布物に `amuos-agent` とAgentのsystemdユニットを追加した。
+
+Windows amd64 / Go 1.27.3でgo fmt/vet/testがPASS（Agent CA、登録・回復・信頼照合・更新・復元の単体試験、実TLSでの登録・ハートビート・更新・失効と、未信頼サーバー・別CA・証明書なしの拒否）。Webのvp check・単体9件・build、PlaywrightのE2E 5件（実Agentの登録・接続・失効を含む）がPASS。Linux amd64のクロスビルドがPASS。
+
+この変更でのCIは未実行。配布物の導入確認（実Agentの登録・接続、復元後の拒否）はCIで行う。監視値・ホスト情報・履歴・タスクの配送・systemd状態、Agentのsystemdでの常駐の確認は未実施。
+
 ### 順序4: タスク基盤と独立環境の復元（2026-11-05）
 
 スキーマv9のtasksと、作成・一覧・取得・取消・解決のAPI 5件を追加した（API.md「タスク」、ADR-018）。操作は読み取り専用のcollectだけ。毎分の自動処理で受付期限切れをtimed_out、実行期限切れをunknownにし、終了から30日で削除する。起動時はdispatching・runningを、復元時はqueuedを含む未完了をunknownにする。認可表は API 32・画面配信10 になった。Agentがないため配送はなく、dispatching・runningへの遷移は試験でDBを直接更新して確認した。

@@ -1,5 +1,5 @@
 import { execFile, spawn, type ChildProcess } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { request as httpsRequest } from "node:https";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -12,12 +12,16 @@ const root = resolve(import.meta.dirname, "..", "..");
 const exe = process.platform === "win32" ? ".exe" : "";
 const binary = process.env.AMUOS_E2E_BINARY ?? join(root, "dist", `controlplane${exe}`);
 const devcert = process.env.AMUOS_E2E_DEVCERT ?? join(root, "dist", `devcert${exe}`);
+const agentBinary = process.env.AMUOS_E2E_AGENT ?? join(root, "dist", `agent${exe}`);
 
 export const ownerPassword = "correct horse battery staple";
 
 export interface ControlPlane {
   origin: string;
   setupToken: string;
+  // Enrolls a real Agent with the code, then keeps it running until stop.
+  startAgent: (code: string) => Promise<void>;
+  stopAgent: () => Promise<void>;
   backupAndRestore: () => Promise<void>;
   stop: () => Promise<void>;
 }
@@ -66,6 +70,7 @@ export async function startControlPlane(): Promise<ControlPlane> {
   await run(binary, ["--db", db, "--bootstrap-file", tokenFile]);
   const setupToken = (await readFile(tokenFile, "utf8")).trim();
   const port = await freePort();
+  const agentPort = await freePort();
   const origin = `https://localhost:${port}`;
   let child: ChildProcess;
   const launch = async () => {
@@ -78,6 +83,8 @@ export async function startControlPlane(): Promise<ControlPlane> {
         `127.0.0.1:${port}`,
         "--origin",
         origin,
+        "--agent-addr",
+        `127.0.0.1:${agentPort}`,
         "--tls-cert",
         join(dir, "cert.pem"),
         "--tls-key",
@@ -106,10 +113,37 @@ export async function startControlPlane(): Promise<ControlPlane> {
       await exited;
     }
   };
+  let agent: ChildProcess | null = null;
+  const agentArgs = [
+    "--state-dir",
+    join(dir, "agent"),
+    "--server",
+    `https://127.0.0.1:${port}`,
+    "--agent-server",
+    `https://127.0.0.1:${agentPort}`,
+    "--ca-file",
+    join(dir, "cert.pem"),
+  ];
+  const stopAgent = async () => {
+    if (agent && agent.exitCode === null && agent.signalCode === null) {
+      const exited = new Promise((r) => agent?.once("exit", r));
+      agent.kill();
+      await exited;
+    }
+    agent = null;
+  };
   await launch();
   return {
     origin,
     setupToken,
+    startAgent: async (code: string) => {
+      const codeFile = join(dir, "enrollment-code");
+      await writeFile(codeFile, code, { mode: 0o600 });
+      await run(agentBinary, [...agentArgs, "--enroll-code-file", codeFile]);
+      await rm(codeFile);
+      agent = spawn(agentBinary, agentArgs, { stdio: "ignore" });
+    },
+    stopAgent,
     backupAndRestore: async () => {
       const identity = join(dir, "recovery.key");
       const archive = join(dir, "snapshot.age");
@@ -135,6 +169,7 @@ export async function startControlPlane(): Promise<ControlPlane> {
       await launch();
     },
     stop: async () => {
+      await stopAgent();
       await stopProcess();
       await rm(dir, { recursive: true, force: true, maxRetries: 5 });
     },

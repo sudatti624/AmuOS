@@ -15,7 +15,7 @@ EnvironmentFile=/etc/amuos/controlplane.env
 LoadCredential=server.pem:/etc/amuos/tls/server.pem
 LoadCredential=server-key.pem:/etc/amuos/tls/server-key.pem
 ExecStart=/usr/local/bin/amuos-controlplane --db /var/lib/amuos/amuos.db \
-  --addr ${AMUOS_ADDR} --origin ${AMUOS_ORIGIN} \
+  --addr ${AMUOS_ADDR} --origin ${AMUOS_ORIGIN} --agent-addr ${AMUOS_AGENT_ADDR} \
   --tls-cert %d/server.pem --tls-key %d/server-key.pem
 Restart=on-failure
 RestartSec=5s

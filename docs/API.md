@@ -9,7 +9,7 @@
 | POST /auth/login | username, password | 有効ユーザーとパスワード。200とCookie、csrf_token |
 | POST /auth/logout | 本文不要、X-CSRF-Token | 有効セッション、Origin・CSRF一致。200、セッション削除 |
 | GET /me | Cookie | 有効セッション。id・本人のusername・最新の範囲付き割当・authorization_version |
-| GET /hosts | Cookie | 最新のhost.read範囲のみ。空の場合はitems: []。削除済みは非表示 |
+| GET /hosts | Cookie | 最新のhost.read範囲のみ。空の場合はitems: []。削除済みは非表示。登録済みならagent（版、最終受信、接続中か、資格情報の期限）を含む |
 | POST /hosts | Cookie、name、X-CSRF-Token | 全体host.manageのみ。pending IDを確保、201。Agent登録・実測値ではない |
 | GET /audit | Cookie | audit.read範囲のみ、最新100件まで。全体イベントには全体権限が必要 |
 
@@ -30,7 +30,7 @@
 | 500 | internal_error（DB・監査等の詳細を外部へ公開しない） |
 | 503 | auth_busy / audit_unavailable、Retry-After付き |
 
-セッション認証と最新割当の取得・状態更新・監査は同じトランザクション。Origin/JSON形式の不正は業務処理前に拒否し、拒否イベントを監査する。ホスト削除・Agent・バックアップAPIは未公開。タスクAPIは下の「タスク」を参照。
+セッション認証と最新割当の取得・状態更新・監査は同じトランザクション。Origin/JSON形式の不正は業務処理前に拒否し、拒否イベントを監査する。バックアップAPIは未公開。タスクとAgentは下の各節を参照。
 
 ## ホスト登録枠の冪等性
 
@@ -57,6 +57,23 @@
 状態は queued・dispatching・running・succeeded・failed・timed_out・cancelled・unknown。範囲外のホスト・タスクは存在しないものと同じ404を返す。作成・取消・解決と監査は同じトランザクションで確定する。
 
 自動処理（毎分）は、受付期限切れのqueuedをtimed_out、実行期限切れのdispatching・runningをunknownにし、終了から30日たったタスクを削除する。unknownは人が解決するまで残す。起動時には前回の停止で結果が分からなくなったdispatching・runningをunknownにする。復元したDBでは、queuedを含む未完了のタスクをすべてunknownにする。終了したタスクを削除したあとは、同じキーで新しいタスクを作れる（読み取り専用のため重複しても副作用はない）。
+
+## Agentの登録と信頼
+
+Agentは登録だけをブラウザ用のポート（既定8443）で行い、登録後はmTLS専用のポート（既定9443、`--agent-addr`）だけを使う。mTLSのポートは、Agent CAが発行したクライアント証明書がなければTLSの段階で接続を拒否し、HTTPの処理に到達させない。各要求では、証明書の署名に加えて、DBの資格情報・Agent・ホストの状態を同じトランザクションで照合する。
+
+| メソッド・パス | 入力 | 認可・結果 |
+|---|---|---|
+| POST /hosts/{id}/enrollment | Cookie、X-CSRF-Token、`{"ttl_minutes":10}`（1〜30、省略時10） | 対象ホストのhost.manage。pendingのホストだけ。201で一回限りの `code` を一度だけ返す。再発行すると未使用の旧コードは無効 |
+| POST /agent/enroll | `{"code":"…","csr":"base64のPKCS#10"}` | コードの対象ホストに新しいAgent IDを割り当て、30日のクライアント証明書を返す。鍵はECDSA P-256、CSRの署名で所持を確認し、CSRの名前などは使わない。使用済みは409、期限切れ・失効・不一致は401 |
+| POST /agent/enrollments/{id}/challenge | `{}` | 使用済みの登録に対する30秒・一回限りのチャレンジ |
+| POST /agent/enrollments/{id}/recover | `{"challenge_id","nonce","signature"}` | 登録時の鍵で署名した場合だけ、元の登録結果を返す。失効・削除・更新済みは401 |
+| POST /hosts/{id}/revoke | Cookie、X-CSRF-Token | host.manage。Agentの全資格情報と未使用コードを失効し、queuedのタスクを取り消す。ホストと履歴は残る |
+| DELETE /hosts/{id} | Cookie、X-CSRF-Token | host.manage。失効と同じ処理のうえ、ホストを一覧から外す。監査ログは残る |
+| POST /agent/v1/heartbeat（mTLS） | `{"version","capabilities":[]}` | 自身の状態を更新。`renew_after`（更新を始める時刻）を返す |
+| POST /agent/v1/credentials/renew（mTLS） | `{"csr"}`（新しい鍵） | 後継の資格情報を発行。同じ要求の再送には同じ後継を返す。旧資格情報は後継が使われた時点、遅くとも24時間後に失効 |
+
+登録系の3つは、ログインと同じ送信元あたり15分に5回の制限を共有する。mTLSの要求はAgentあたり1分に120回まで。最終受信から60秒を過ぎたAgentは `connected: false` と表示する。復元したDBではすべてのAgentの資格情報を失効し、ホストをpendingに戻し、Agent CAを作り直すため、各Agentは新しいコードで登録し直す。
 
 ## リクエストIDと拒否の監査
 

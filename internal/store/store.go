@@ -28,14 +28,15 @@ var (
 //go:embed migrations/*.sql
 var migrations embed.FS
 
-var migrationNames = []string{"001_foundation.sql", "002_accounts.sql", "003_authorization.sql", "004_audit_requests.sql", "005_audit_retention.sql", "006_audit_maintenance.sql", "007_idempotency.sql", "008_local_maintenance.sql", "009_tasks.sql"}
+var migrationNames = []string{"001_foundation.sql", "002_accounts.sql", "003_authorization.sql", "004_audit_requests.sql", "005_audit_retention.sql", "006_audit_maintenance.sql", "007_idempotency.sql", "008_local_maintenance.sql", "009_tasks.sql", "010_agents.sql"}
 
 type Store struct{ db *sql.DB }
 type Host struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	State    string `json:"state"`
-	Replayed bool   `json:"-"`
+	ID       string     `json:"id"`
+	Name     string     `json:"name"`
+	State    string     `json:"state"`
+	Agent    *AgentInfo `json:"agent"`
+	Replayed bool       `json:"-"`
 }
 type Event struct {
 	ID        int64           `json:"id"`
@@ -382,7 +383,16 @@ func (s *Store) Hosts(ctx context.Context, token string, now time.Time) ([]Host,
 				hosts = append(hosts, h)
 			}
 		}
-		return rows.Err()
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		rows.Close()
+		for i := range hosts {
+			if hosts[i].Agent, err = agentInfo(tx, hosts[i].ID, now); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	return hosts, err
 }

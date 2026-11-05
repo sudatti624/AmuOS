@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"filippo.io/age"
+	"github.com/sudatti624/AmuOS/internal/agentca"
 	"github.com/sudatti624/AmuOS/internal/rbac"
 	"github.com/sudatti624/AmuOS/internal/statelock"
 	"github.com/sudatti624/AmuOS/internal/store"
@@ -100,12 +101,24 @@ func TestRoundTripPreservesDataAndRevokesCredentials(t *testing.T) {
 	f := prepared(t)
 	ctx := context.Background()
 	target := filepath.Join(t.TempDir(), "restored", "amuos.db")
+	// An Agent CA already in the target directory must not survive the restore.
+	if err := os.MkdirAll(filepath.Dir(target), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := agentca.Load(filepath.Dir(target), time.Now()); err != nil {
+		t.Fatal(err)
+	}
 	result, err := Restore(ctx, target, f.archive, f.keyFile, "test-version")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if result.Backup.ID != f.manifest.ID || result.Config != testConfig || result.RetainedDatabase != "" {
 		t.Fatalf("unexpected restore result: %+v", result)
+	}
+	for _, name := range []string{agentca.CertFile, agentca.KeyFile} {
+		if _, err := os.Stat(filepath.Join(filepath.Dir(target), name)); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("agent CA file %s survived the restore: %v", name, err)
+		}
 	}
 	if err := store.ValidateSnapshot(ctx, target); err != nil {
 		t.Fatal(err)

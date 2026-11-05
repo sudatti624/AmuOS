@@ -29,10 +29,28 @@ export interface Group {
   grants: Grant[];
 }
 
+export interface AgentInfo {
+  id: string;
+  version: string;
+  capabilities: string[];
+  last_seen: number | null;
+  connected: boolean;
+  credential_expires_at: number;
+  credential_renewal_due: boolean;
+}
+
 export interface Host {
   id: string;
   name: string;
   state: string;
+  agent?: AgentInfo | null;
+}
+
+export interface Enrollment {
+  id: string;
+  host_id: string;
+  code: string;
+  expires_at: number;
 }
 
 export interface AuditEvent {

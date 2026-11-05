@@ -88,6 +88,43 @@ systemctl status amuos-controlplane
 
 ブラウザで `<AMUOS_ORIGINの値>/setup` を開き、手順3のトークン（`cat /var/lib/amuos/setup-token`）と、オーナーのユーザー名・パスワード（12〜128バイト）を入力します。作成できたら `/var/lib/amuos/setup-token` を削除し、ログイン画面からログインしてください。ほかのユーザーは「ユーザーとグループ」の「招待」から招待できます。
 
+## 6. Agentの導入（管理対象のホスト）
+
+AgentはControl Planeへ外向きに接続します。登録だけをブラウザ用のポート（8443）で行い、登録後はmTLS専用のポート（9443）だけを使います。
+
+**Control Plane側**：Agentを別のホストで動かす場合は、`/etc/amuos/controlplane.env` の `AMUOS_AGENT_ADDR` を `0.0.0.0:9443` などに変えて `systemctl restart amuos-controlplane` します。ファイアウォールでは、9443番を管理対象のホストからだけ開けてください。サーバー証明書には、Agentが接続に使う名前（またはIPアドレス）を含めます。
+
+**管理対象のホスト側**：配布物の `amuos-agent` と `packaging/` のファイルを使います。
+
+```sh
+useradd --system --home-dir /var/lib/amuos-agent --no-create-home --shell /usr/sbin/nologin amuos-agent
+install -m 755 amuos-agent /usr/local/bin/amuos-agent
+install -d -m 755 /etc/amuos-agent
+install -m 644 packaging/agent.env /etc/amuos-agent/agent.env
+install -m 644 packaging/amuos-agent.service /etc/systemd/system/amuos-agent.service
+install -d -m 700 -o amuos-agent -g amuos-agent /var/lib/amuos-agent
+```
+
+- `/etc/amuos-agent/agent.env` の `AMUOS_SERVER`（8443番のURL）と `AMUOS_AGENT_SERVER`（9443番のURL）を、Control Planeに合わせます。
+- Control Planeのサーバー証明書を検証するための証明書（発行元のCA証明書、自己署名の場合はその証明書）を `/etc/amuos-agent/server-ca.pem` に置きます。検証を省く設定はありません。安全な経路で受け渡してください。
+
+画面の「ホスト」で登録枠を作り、「登録コード」から一回限りのコード（有効10分）を発行します。コードを、管理対象のホストで所有者だけが読めるファイルに保存して登録し、終わったらファイルを削除します。
+
+```sh
+install -m 600 -o amuos-agent -g amuos-agent /dev/null /var/lib/amuos-agent/code
+# 発行したコードを /var/lib/amuos-agent/code に書き込みます
+. /etc/amuos-agent/agent.env
+runuser -u amuos-agent -- /usr/local/bin/amuos-agent --state-dir /var/lib/amuos-agent \
+  --server "$AMUOS_SERVER" --agent-server "$AMUOS_AGENT_SERVER" \
+  --ca-file /etc/amuos-agent/server-ca.pem --enroll-code-file /var/lib/amuos-agent/code
+rm /var/lib/amuos-agent/code
+systemctl enable --now amuos-agent
+```
+
+画面の「ホスト」に「接続中」と表示されれば完了です。最終受信から60秒を過ぎると「切断」と表示します。資格情報は30日有効で、残り10日になるとAgentが自動で更新します。
+
+ホストを「失効」または「削除」すると、そのAgentの資格情報はすぐに使えなくなります。同じホストを登録し直すときは、新しい登録枠を作ってください。Control Planeを復元したときは、すべてのAgentの資格情報が無効になり、ホストは「登録待ち」に戻ります。新しいコードで登録し直してください（Agentの `/var/lib/amuos-agent` を空にしてから行います）。
+
 ## バックアップ
 
 停止中のバックアップと同版への復元の詳細は、同梱の [BACKUP.md](BACKUP.md) を参照してください。日次と、更新前・重要な設定変更前に取得し、本体とは別の障害領域に直近7世代以上を保管します。

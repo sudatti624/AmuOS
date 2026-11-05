@@ -24,13 +24,15 @@ type bucket struct {
 	Until time.Time
 }
 type Server struct {
-	store      *store.Store
-	origin     string
-	clock      func() time.Time
-	mu         sync.Mutex
-	attempts   map[string]bucket
-	authSlots  chan struct{}
-	rejections rejectionLimiter
+	store         *store.Store
+	origin        string
+	clock         func() time.Time
+	mu            sync.Mutex
+	attempts      map[string]bucket
+	authSlots     chan struct{}
+	rejections    rejectionLimiter
+	issuer        store.Issuer
+	agentRequests map[string]bucket
 }
 
 func New(db *store.Store, origin string) (http.Handler, error) {
@@ -43,7 +45,7 @@ func newServer(db *store.Store, origin string) (*Server, http.Handler, error) {
 	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Path != "" {
 		return nil, nil, errors.New("origin must be an HTTPS origin without a path")
 	}
-	s := &Server{store: db, origin: origin, clock: time.Now, attempts: map[string]bucket{}, authSlots: make(chan struct{}, 1), rejections: rejectionLimiter{clients: map[string]bucket{}}}
+	s := &Server{store: db, origin: origin, clock: time.Now, attempts: map[string]bucket{}, authSlots: make(chan struct{}, 1), rejections: rejectionLimiter{clients: map[string]bucket{}}, agentRequests: map[string]bucket{}}
 	r := chi.NewRouter()
 	r.Use(s.headers)
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) { s.reject(w, r, 404, "not_found") })
@@ -71,8 +73,14 @@ func newServer(db *store.Store, origin string) (*Server, http.Handler, error) {
 	r.Get("/api/v1/me", s.identity)
 	r.Get("/api/v1/hosts", s.hosts)
 	r.Post("/api/v1/hosts", s.createHost)
+	r.Delete("/api/v1/hosts/{id}", s.changeHost(db.DeleteHost))
+	r.Post("/api/v1/hosts/{id}/revoke", s.changeHost(db.RevokeHost))
+	r.Post("/api/v1/hosts/{id}/enrollment", s.createEnrollment)
 	r.Post("/api/v1/hosts/{id}/tasks", s.createTask)
 	r.Get("/api/v1/tasks", s.tasks)
+	r.Post("/api/v1/agent/enroll", s.enrollAgent)
+	r.Post("/api/v1/agent/enrollments/{id}/challenge", s.enrollmentChallenge)
+	r.Post("/api/v1/agent/enrollments/{id}/recover", s.recoverEnrollment)
 	r.Get("/api/v1/tasks/{id}", s.task)
 	r.Post("/api/v1/tasks/{id}/cancel", s.cancelTask)
 	r.Post("/api/v1/tasks/{id}/resolve", s.resolveTask)

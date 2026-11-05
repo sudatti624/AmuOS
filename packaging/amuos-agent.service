@@ -1,0 +1,49 @@
+# Install as /etc/systemd/system/amuos-agent.service on each managed host
+# (see INSTALL.md). The Agent only reads host information; stopping it never
+# stops anything else on the host.
+[Unit]
+Description=AmuOS agent
+Documentation=https://github.com/sudatti624/AmuOS
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=amuos-agent
+Group=amuos-agent
+EnvironmentFile=/etc/amuos-agent/agent.env
+ExecStart=/usr/local/bin/amuos-agent --state-dir /var/lib/amuos-agent \
+  --server ${AMUOS_SERVER} --agent-server ${AMUOS_AGENT_SERVER} \
+  --ca-file /etc/amuos-agent/server-ca.pem
+Restart=on-failure
+RestartSec=10s
+TimeoutStopSec=30s
+
+StateDirectory=amuos-agent
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target

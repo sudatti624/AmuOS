@@ -12,9 +12,11 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
+	"github.com/sudatti624/AmuOS/internal/agentca"
 	"github.com/sudatti624/AmuOS/internal/controlplane"
 	"github.com/sudatti624/AmuOS/internal/maintenance"
 	"github.com/sudatti624/AmuOS/internal/recovery"
@@ -29,6 +31,7 @@ func run() error {
 	showVersion := flag.Bool("version", false, "print the version and exit")
 	dbPath := flag.String("db", "data/amuos.db", "SQLite database path")
 	addr := flag.String("addr", "127.0.0.1:8443", "HTTPS listen address")
+	agentAddr := flag.String("agent-addr", "127.0.0.1:9443", "mTLS listen address for enrolled Agents")
 	origin := flag.String("origin", "https://localhost:8443", "exact external HTTPS origin")
 	cert := flag.String("tls-cert", "", "server certificate PEM")
 	key := flag.String("tls-key", "", "server private key PEM")
@@ -101,6 +104,9 @@ func run() error {
 		}
 		return json.NewEncoder(os.Stdout).Encode(result)
 	}
+	if *agentAddr == "" {
+		return errors.New("--agent-addr must not be empty")
+	}
 	if *bootstrap == "" && (*cert == "" || *key == "") {
 		return errors.New("--tls-cert and --tls-key are required")
 	}
@@ -154,7 +160,11 @@ func run() error {
 		fmt.Println("Setup token written to the specified file; valid for 10 minutes. Keep it private and remove after setup.")
 		return nil
 	}
-	handler, err := controlplane.New(db, *origin)
+	ca, err := agentca.Load(filepath.Dir(*dbPath), time.Now())
+	if err != nil {
+		return err
+	}
+	handler, agentHandler, err := controlplane.Handlers(db, *origin, ca)
 	if err != nil {
 		return err
 	}
@@ -165,12 +175,21 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	// Agents use their own listener: a client certificate from the Agent CA is
+	// required before any HTTP processing, and browsers never use this port.
+	agentSrv := &http.Server{Addr: *agentAddr, Handler: agentHandler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 * 1024, TLSConfig: &tls.Config{MinVersion: tls.VersionTLS13, Certificates: []tls.Certificate{certificate}, ClientAuth: tls.RequireAndVerifyClientCert, ClientCAs: ca.Pool()}}
+	agentListener, err := net.Listen("tcp", *agentAddr)
+	if err != nil {
+		listener.Close()
+		return err
+	}
 	workerDone := make(chan struct{})
 	go func() { defer close(workerDone); _ = maintenance.Run(ctx, time.Minute, db.RunMaintenance) }()
 	defer func() { stop(); <-workerDone }()
-	done := make(chan error, 1)
+	done := make(chan error, 2)
 	go func() { done <- srv.ServeTLS(listener, "", "") }()
-	slog.Info("control plane starting", "address", *addr)
+	go func() { done <- agentSrv.ServeTLS(agentListener, "", "") }()
+	slog.Info("control plane starting", "address", *addr, "agent_address", *agentAddr)
 	select {
 	case err := <-done:
 		if errors.Is(err, http.ErrServerClosed) {
@@ -180,7 +199,7 @@ func run() error {
 	case <-ctx.Done():
 		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		return srv.Shutdown(shutdown)
+		return errors.Join(srv.Shutdown(shutdown), agentSrv.Shutdown(shutdown))
 	}
 }
 

@@ -15,7 +15,7 @@
 
 ブラウザ→HTTPS API、Control Plane→SQLite/鍵ファイル、ホスト→Agent専用リスナー、OS管理者→ローカル復旧を独立した境界とする。Origin・転送ヘッダー・要求者の自己申告IDを権限として信用しない。
 
-- 実装済み全ルート（API 32・画面配信10）の認証・操作・範囲・CSRF・再認証はAPI_AUTHORIZATION.csvに固定する。自動試験がchiの全ルートと照合し、全sessionルートの未認証拒否と変更要求のCSRF欠落拒否を検証する。
+- 実装済み全ルート（API 38・Agent 2・画面配信10）の認証・操作・範囲・CSRF・再認証はAPI_AUTHORIZATION.csvに固定する。自動試験がchiの全ルートと照合し、全sessionルートの未認証拒否と変更要求のCSRF欠落拒否を検証する。
 - Ownerはユーザー直接・全体のみ。Adminは自己の操作/範囲の部分集合だけを付与できる。OwnerとOwnerを含むグループの変更は再認証済みOwnerに限定する。
 - 自動保持と冪等記録の期限処理は固定主体system。設定に従った期限処理だけを行い、権限や資格情報を新規付与しない。ブラウザからsystemを指定する入力・エンドポイントは設けない。
 - 後続の配信は購読開始だけでなくイベント配送時も最新の有効性・範囲・authorization_versionを照合する。失効時は配信を終了し、古い接続の再利用を許可しない。
@@ -36,7 +36,9 @@ users、groups、memberships、grants、sessions、bootstrap、invitations、inv
 
 HTTPではホスト作成のキーを必須にする。内部Storeのキーなし呼出しはテスト準備などのローカル処理用で、HTTPからは到達させない。公開APIの保証と内部の単発呼出しを混同しない。
 
-## 後続: Agentプロトコル（順序5、未実装）
+## Agentプロトコル（順序5で実装中）
+
+登録・回復・ハートビート・更新・失効・削除はADR-019とAPI.md「Agentの登録と信頼」のとおり実装した。samples・tasks/poll・tasks/{id}/resultは後続の区切りで実装する。agentsの状態はpendingを使わず、登録の時点でactiveにする（未登録のホストはhosts.state=pendingで表す）。
 
 通信はHTTPS JSON・TLS 1.3。通常のブラウザ/登録APIは8443、登録後のAgentは専用9443でmTLS必須。接続先名と信頼アンカーを導入時に安全な経路で配布する。検証無効化・初回接続先の無条件受容は行わない。
 

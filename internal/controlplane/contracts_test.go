@@ -28,7 +28,10 @@ func TestAuthorizationContractCoversEveryRoute(t *testing.T) {
 		t.Fatal(err)
 	}
 	documented := map[string][]string{}
-	public := map[string]string{"GET /healthz": "public", "POST /api/v1/setup": "bootstrap", "POST /api/v1/auth/login": "password", "POST /api/v1/invitations/accept": "invitation"}
+	public := map[string]string{"GET /healthz": "public", "POST /api/v1/setup": "bootstrap", "POST /api/v1/auth/login": "password", "POST /api/v1/invitations/accept": "invitation",
+		"POST /api/v1/agent/enroll": "enrollment_code", "POST /api/v1/agent/enrollments/{id}/challenge": "enrollment_id", "POST /api/v1/agent/enrollments/{id}/recover": "enrollment_key"}
+	// Agent routes exist only on the mTLS listener, never on the browser one.
+	agentRoutes := map[string]bool{}
 	// The application shell and build files carry no data; the API authorizes every action.
 	for _, path := range append(webui.Pages, "/assets/*", "/favicon.png") {
 		public["GET "+path] = "static"
@@ -38,7 +41,9 @@ func TestAuthorizationContractCoversEveryRoute(t *testing.T) {
 			t.Fatal("invalid contract row", row)
 		}
 		key := row[0] + " " + row[1]
-		if row[2] != "session" && public[key] != row[2] {
+		if row[2] == "agent_mtls" {
+			agentRoutes[key] = true
+		} else if row[2] != "session" && public[key] != row[2] {
 			t.Errorf("unapproved public route: %s", key)
 		}
 		if row[5] != "yes" && row[5] != "no" {
@@ -50,9 +55,27 @@ func TestAuthorizationContractCoversEveryRoute(t *testing.T) {
 		documented[key] = row
 	}
 	actual := map[string]bool{}
+	_, agent, err := Handlers(db, "https://amuos.test", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = chi.Walk(agent.(chi.Routes), func(method, path string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+		key := method + " " + path
+		actual[key] = true
+		if !agentRoutes[key] {
+			t.Errorf("agent route has no authorization contract: %s", key)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	err = chi.Walk(h.(chi.Routes), func(method, path string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
 		key := method + " " + path
 		actual[key] = true
+		if agentRoutes[key] {
+			t.Errorf("agent route served on the browser listener: %s", key)
+		}
 		if _, ok := documented[key]; !ok {
 			t.Errorf("route has no authorization contract: %s", key)
 		}
@@ -82,6 +105,8 @@ func TestAuthorizationContractCoversEveryRoute(t *testing.T) {
 			body = map[string]any{"user_id": "other-user"}
 		case path == "/api/v1/audit/retention":
 			body = map[string]any{"retention_days": 180}
+		case strings.HasSuffix(path, "/enrollment"):
+			body = map[string]any{"ttl_minutes": 10}
 		case strings.HasSuffix(path, "/tasks"):
 			body = map[string]any{"operation": "collect"}
 		case strings.HasSuffix(path, "/resolve"):

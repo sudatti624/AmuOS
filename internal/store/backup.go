@@ -16,7 +16,7 @@ import (
 func SchemaVersion() int { return len(migrationNames) }
 
 // backupTables are the tables whose row counts a backup manifest records.
-var backupTables = []string{"users", "groups", "memberships", "grants", "sessions", "hosts", "invitations", "invitation_grants", "bootstrap", "audit_events", "audit_settings", "idempotency_records", "local_maintenance", "tasks"}
+var backupTables = []string{"users", "groups", "memberships", "grants", "sessions", "hosts", "invitations", "invitation_grants", "bootstrap", "audit_events", "audit_settings", "idempotency_records", "local_maintenance", "tasks", "agents", "agent_credentials", "enrollments", "enrollment_challenges"}
 
 func BackupTables() []string { return append([]string(nil), backupTables...) }
 
@@ -259,6 +259,9 @@ func (s *Store) PrepareRestoredState(ctx context.Context, id string, now time.Ti
 			return err
 		}
 		if err := holdOpenTasks(ctx, tx, now, "'queued','dispatching','running'", "restored"); err != nil {
+			return err
+		}
+		if err := restoreAgentTrust(tx, now); err != nil {
 			return err
 		}
 		for _, query := range []string{

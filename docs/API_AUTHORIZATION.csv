@@ -22,6 +22,12 @@ POST,/api/v1/ownership/transfer,session,owner.manage,global,yes,required
 GET,/api/v1/me,session,self,self,no,none
 GET,/api/v1/hosts,session,host.read,filtered_hosts,no,none
 POST,/api/v1/hosts,session,host.manage,global,yes,none
+DELETE,/api/v1/hosts/{id},session,host.manage,host,yes,none
+POST,/api/v1/hosts/{id}/revoke,session,host.manage,host,yes,none
+POST,/api/v1/hosts/{id}/enrollment,session,host.manage,host,yes,none
+POST,/api/v1/agent/enroll,enrollment_code,agent.enroll,fixed_host,no,none
+POST,/api/v1/agent/enrollments/{id}/challenge,enrollment_id,agent.recover,fixed_host,no,none
+POST,/api/v1/agent/enrollments/{id}/recover,enrollment_key,agent.recover,fixed_host,no,none
 POST,/api/v1/hosts/{id}/tasks,session,host.collect,host,yes,none
 GET,/api/v1/tasks,session,host.read,filtered_hosts,no,none
 GET,/api/v1/tasks/{id},session,host.read,host,no,none
@@ -31,6 +37,8 @@ GET,/api/v1/audit,session,audit.read,filtered_events,no,none
 GET,/api/v1/audit/retention,session,audit.read,global,no,none
 PUT,/api/v1/audit/retention,session,owner.manage,global,yes,required
 POST,/api/v1/audit/retention/run,session,owner.manage,global,yes,required
+POST,/agent/v1/heartbeat,agent_mtls,agent.self,own_host,no,none
+POST,/agent/v1/credentials/renew,agent_mtls,agent.self,own_host,no,none
 GET,/,static,none,none,no,none
 GET,/setup,static,none,none,no,none
 GET,/login,static,none,none,no,none
