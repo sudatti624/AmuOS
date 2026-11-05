@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Installs a release archive in a new directory by following docs/INSTALL.md,
-# then checks first setup, login, a host slot and a restart.
+# then checks first setup, login, a host slot, restart and stopped recovery.
 # The certificate is self-signed and only for this check.
 set -euo pipefail
 
@@ -74,4 +74,39 @@ csrf=$(login)
 api "$origin/api/v1/hosts" | grep -q '"name":"smoke-host"' || { echo "FAIL: host after restart" >&2; exit 1; }
 stop
 
-echo "PASS: install, first setup, login, host slot and restart"
+# Recovery keys are never supplied as command-line values or printed.
+mkdir -m 700 recovery
+./amuos-controlplane --generate-recovery-key recovery/identity.key > recovery/recipient
+recipient="$(cat recovery/recipient)"
+./amuos-controlplane --db data/amuos.db --backup-out recovery/snapshot.age \
+  --recipient "$recipient" --addr 127.0.0.1:8443 --origin "$origin" > recovery/manifest.json
+if ./amuos-controlplane --db data/amuos.db --backup-out recovery/snapshot.age \
+  --recipient "$recipient" >/dev/null 2>&1; then
+  echo "FAIL: backup overwrote an existing archive" >&2; exit 1
+fi
+
+start
+if ./amuos-controlplane --db data/amuos.db --restore-from recovery/snapshot.age \
+  --recovery-key-file recovery/identity.key >/dev/null 2>&1; then
+  echo "FAIL: restore ran while the server owned the state" >&2; exit 1
+fi
+stop
+
+head -c -1 recovery/snapshot.age > recovery/broken.age
+if ./amuos-controlplane --db data/amuos.db --restore-from recovery/broken.age \
+  --recovery-key-file recovery/identity.key >/dev/null 2>&1; then
+  echo "FAIL: restore accepted a truncated archive" >&2; exit 1
+fi
+./amuos-controlplane --db data/amuos.db --restore-from recovery/snapshot.age \
+  --recovery-key-file recovery/identity.key > recovery/restore.json
+start
+# The cookie from before backup must no longer authenticate.
+code=$(api -o /dev/null -w '%{http_code}' "$origin/api/v1/me")
+expect "$code" 401 "old session after restore"
+csrf=$(login)
+[ -n "$csrf" ] || { echo "FAIL: login after restore" >&2; exit 1; }
+api "$origin/api/v1/hosts" | grep -q '"name":"smoke-host"' || { echo "FAIL: host after restore" >&2; exit 1; }
+api "$origin/api/v1/audit" | grep -q 'restore.complete' || { echo "FAIL: restore audit" >&2; exit 1; }
+stop
+
+echo "PASS: install, setup, login, host, restart, encrypted backup and restore"

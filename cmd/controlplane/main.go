@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/sudatti624/AmuOS/internal/controlplane"
 	"github.com/sudatti624/AmuOS/internal/maintenance"
+	"github.com/sudatti624/AmuOS/internal/recovery"
 	"github.com/sudatti624/AmuOS/internal/statelock"
 	"github.com/sudatti624/AmuOS/internal/store"
 )
@@ -31,10 +33,53 @@ func run() error {
 	cert := flag.String("tls-cert", "", "server certificate PEM")
 	key := flag.String("tls-key", "", "server private key PEM")
 	bootstrap := flag.String("bootstrap-file", "", "write initial setup token to a new local private file and exit")
+	backup := flag.String("backup-out", "", "write a verified age-encrypted backup and exit (server must be stopped)")
+	recipient := flag.String("recipient", "", "age X25519 backup recipient public key")
+	restore := flag.String("restore-from", "", "restore a verified age backup and exit (server must be stopped)")
+	recoveryKey := flag.String("recovery-key-file", "", "private file containing one age X25519 recovery identity")
+	generateKey := flag.String("generate-recovery-key", "", "write a new private recovery key to a new file and print only its public recipient")
 	flag.Parse()
+	modes := 0
+	for _, enabled := range []bool{*showVersion, *bootstrap != "", *backup != "", *restore != "", *generateKey != ""} {
+		if enabled {
+			modes++
+		}
+	}
+	if modes > 1 || (*recipient != "" && *backup == "") || (*recoveryKey != "" && *restore == "") || (*backup != "" && *recipient == "") || (*restore != "" && *recoveryKey == "") {
+		return errors.New("choose one mode: server, version, bootstrap, key generation, backup with recipient, or restore with recovery key file")
+	}
+	if flag.NArg() != 0 {
+		return errors.New("unexpected positional arguments")
+	}
 	if *showVersion {
 		fmt.Println("amuos-controlplane", version)
 		return nil
+	}
+	if *generateKey != "" {
+		recipient, err := recovery.GenerateRecoveryKey(*generateKey)
+		if err != nil {
+			return err
+		}
+		fmt.Println(recipient)
+		return nil
+	}
+	if *backup != "" || *restore != "" {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		ctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
+		defer cancel()
+		if *backup != "" {
+			manifest, err := recovery.Backup(ctx, *dbPath, *backup, *recipient, version, recovery.Config{FormatVersion: 1, Address: *addr, Origin: *origin})
+			if err != nil {
+				return err
+			}
+			return json.NewEncoder(os.Stdout).Encode(manifest)
+		}
+		result, err := recovery.Restore(ctx, *dbPath, *restore, *recoveryKey, version)
+		if err != nil {
+			return err
+		}
+		return json.NewEncoder(os.Stdout).Encode(result)
 	}
 	if *bootstrap == "" && (*cert == "" || *key == "") {
 		return errors.New("--tls-cert and --tls-key are required")
@@ -52,11 +97,17 @@ func run() error {
 		return err
 	}
 	defer stateLock.Close()
+	if err := recovery.CleanupStages(*dbPath); err != nil {
+		return err
+	}
 	db, err := store.Open(*dbPath)
 	if err != nil {
 		return err
 	}
 	defer db.Close()
+	if err := db.RecoverLocalMaintenance(context.Background(), time.Now()); err != nil {
+		return err
+	}
 	if *bootstrap != "" {
 		// O_EXCL prevents overwriting an existing credential file.
 		file, err := os.OpenFile(*bootstrap, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)

@@ -16,6 +16,12 @@ coverage.out
 *.sqlite
 *.sqlite3
 setup-token
+*.age
+.amuos.lock
+.amuos-backup-*
+.backup-stage-*/
+.restore-stage-*/
+.pre-restore-*/
 .idea/
 .vscode/
 .DS_Store
@@ -23,3 +29,4 @@ Thumbs.db
 internal/webui/static/app/
 web/test-results/
 web/playwright-report/
+debug.log

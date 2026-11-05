@@ -18,6 +18,7 @@ export const ownerPassword = "correct horse battery staple";
 export interface ControlPlane {
   origin: string;
   setupToken: string;
+  backupAndRestore: () => Promise<void>;
   stop: () => Promise<void>;
 }
 
@@ -66,44 +67,75 @@ export async function startControlPlane(): Promise<ControlPlane> {
   const setupToken = (await readFile(tokenFile, "utf8")).trim();
   const port = await freePort();
   const origin = `https://localhost:${port}`;
-  const child: ChildProcess = spawn(
-    binary,
-    [
-      "--db",
-      db,
-      "--addr",
-      `127.0.0.1:${port}`,
-      "--origin",
-      origin,
-      "--tls-cert",
-      join(dir, "cert.pem"),
-      "--tls-key",
-      join(dir, "key.pem"),
-    ],
-    { stdio: "ignore" },
-  );
-  const deadline = Date.now() + 15_000;
-  for (;;) {
-    try {
-      if ((await call(origin, "GET", "/healthz")).status === 200) break;
-    } catch {
-      // Not listening yet.
+  let child: ChildProcess;
+  const launch = async () => {
+    child = spawn(
+      binary,
+      [
+        "--db",
+        db,
+        "--addr",
+        `127.0.0.1:${port}`,
+        "--origin",
+        origin,
+        "--tls-cert",
+        join(dir, "cert.pem"),
+        "--tls-key",
+        join(dir, "key.pem"),
+      ],
+      { stdio: "ignore" },
+    );
+    const deadline = Date.now() + 15_000;
+    for (;;) {
+      try {
+        if ((await call(origin, "GET", "/healthz")).status === 200) break;
+      } catch {
+        // Not listening yet.
+      }
+      if (Date.now() > deadline) {
+        child.kill();
+        throw new Error("control plane did not start");
+      }
+      await new Promise((r) => setTimeout(r, 100));
     }
-    if (Date.now() > deadline) {
+  };
+  const stopProcess = async () => {
+    if (child.exitCode === null && child.signalCode === null) {
+      const exited = new Promise((r) => child.once("exit", r));
       child.kill();
-      throw new Error("control plane did not start");
+      await exited;
     }
-    await new Promise((r) => setTimeout(r, 100));
-  }
+  };
+  await launch();
   return {
     origin,
     setupToken,
+    backupAndRestore: async () => {
+      const identity = join(dir, "recovery.key");
+      const archive = join(dir, "snapshot.age");
+      const { stdout } = await run(binary, ["--generate-recovery-key", identity]);
+      const recipient = stdout.trim();
+      await expect(
+        run(binary, ["--db", db, "--backup-out", archive, "--recipient", recipient]),
+      ).rejects.toThrow();
+      await stopProcess();
+      await run(binary, [
+        "--db",
+        db,
+        "--backup-out",
+        archive,
+        "--recipient",
+        recipient,
+        "--addr",
+        `127.0.0.1:${port}`,
+        "--origin",
+        origin,
+      ]);
+      await run(binary, ["--db", db, "--restore-from", archive, "--recovery-key-file", identity]);
+      await launch();
+    },
     stop: async () => {
-      if (child.exitCode === null) {
-        const exited = new Promise((r) => child.once("exit", r));
-        child.kill();
-        await exited;
-      }
+      await stopProcess();
       await rm(dir, { recursive: true, force: true, maxRetries: 5 });
     },
   };

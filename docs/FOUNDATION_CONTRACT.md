@@ -91,17 +91,19 @@ Agent要求はAgent単位120回/分、未登録/回復はIP単位5回/15分。TL
 
 APIはsession・CSRFで `POST /api/v1/hosts/{id}/tasks`（collectのみ、host.collect）、`GET /api/v1/tasks` / `GET /api/v1/tasks/{id}`（親ホストのhost.readで絞込）、`POST /api/v1/tasks/{id}/cancel`（host.collect）、`POST /api/v1/tasks/{id}/resolve`（host.manage、根拠必須）を採用する。任意コマンド入力は受け付けない。
 
-## 後続: バックアップ形式・復元（順序4、未実装）
+## バックアップ形式・復元（順序4、一部実装）
 
-独自のストリーム暗号形式を作らず、age v1形式・X25519 recipientを採用する。実装予定はfilippo.io/age v1.3.2（BSD-3-Clause）。依存導入と脆弱性再確認・ライセンス同梱は順序4。現在のgo.modへ未使用依存を追加しない。
+age v1形式・X25519 recipientを採用し、filippo.io/age v1.3.2（BSD-3-Clause）を導入した。現在のSQLite状態の停止中バックアップ・同版復元を提供する。コマンドと制限はBACKUP.md、実装判断はADR-016、検証証跡はPROGRESS.md。AgentのCA・保存鍵の再暗号化・汎用タスク保留・独立環境での総合復元は未実装または未検証。
 
 暗号化ストリームの内容はtarで、許可する通常ファイルだけを含める。manifest.json（最大64KiB）、database.sqlite、config.json、keys.jsonを必須とする。manifestには形式版1、製品版、スキーマ版、設定版、バックアップID、UTC一貫性境界、各ファイルのサイズ・SHA-256、鍵ID・対象一覧を含める。復旧用秘密鍵は含めず、別の障害領域に保管する。大きなDBを全量メモリへ読み込まない。
 
 初期の展開上限はDB10GiB、設定/鍵各1MiB、全体12GiB。上限超過は明示的な失敗とし、切り詰めない。メモリ使用量はストリームのバッファと小さなmanifestに制限する。
 
-初期の手動コマンドは `--backup-out <archive.age> --recipient <public-key>`、復元は `--restore-from <archive.age> --recovery-key-file <private-key>` とし、通常サーバー起動・初回設定と排他的なモードにする。OS管理権限と保護された状態ファイルへのアクセスを必要とする。オンライン復元APIは提供しない。
+手動コマンドは `--backup-out <archive.age> --recipient <public-key>`、復元は `--restore-from <archive.age> --recovery-key-file <private-key>`。`--generate-recovery-key <file>` で新規秘密鍵ファイルを生成できる。通常サーバー起動・初回設定とは排他的なモードで、OS管理権限と保護された状態ファイルへのアクセスを必要とする。オンライン復元APIは提供しない。
 
-1. Control Planeを停止し、同じ状態領域の排他ロックを取得する。Linuxはflock、Windows開発実装はLockFileExを使用し、二重起動・バックアップ/復元の競合を拒否する。通常起動・初回設定の排他は実装済みで、DB親ディレクトリの `.amuos.lock` をDB開封前からDBを閉じるまで保持する。状態と同じ保護領域に置くことで、将来の停止中の保守処理も同じファイルを使用できる。ロックファイルは削除・置換しない。バックアップ/復元モードでの利用は未実装。
+現在のconfig.jsonは起動引数のアドレスとOriginの確認用記録であり、自動適用しない。keys.jsonは空の形式版1のみ許可する。永続状態がDBだけの現段階では、一時DBの資格情報無効化と監査を確定後、SQLiteバックアップAPIのトランザクションで置換する。TLS証明書は別途用意する。以下の手順には後続のAgent・保存鍵を含む到達条件も記載する。
+
+1. Control Planeを停止し、同じ状態領域の排他ロックを取得する。Linuxはflock、Windows開発実装はLockFileExを使用し、二重起動・バックアップ/復元の競合を拒否する。通常起動・初回設定・バックアップ・復元はDB親ディレクトリの `.amuos.lock` をDB開封前からDBを閉じるまで保持する。ロックファイルは削除・置換しない。
 2. SQLiteバックアップAPIで一貫したDBを取得し、同じ境界の設定・鍵束・manifestを暗号化ストリームへ書き出す。平文DBの単純コピー、秘密鍵のログ/引数値への出力は禁止する。
 3. 完全性とDB整合性を検証して完成名で原子的に公開する。容量不足・中断・暗号化失敗では成功成果物にしない。
 4. 復元はネットワーク隔離・空の0700一時ディレクトリで実施する。同一製品版のみを初期保証範囲とし、暗号認証・最終チャンク・manifest・必須ファイル・サイズ/ハッシュ・SQLite整合性・鍵による復号を確認する。

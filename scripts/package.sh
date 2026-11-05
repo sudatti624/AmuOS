@@ -15,6 +15,7 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath \
 go run ./scripts/licenses -out "$out/$name/THIRD_PARTY_LICENSES.md"
 cp LICENSE "$out/$name/LICENSE"
 cp docs/INSTALL.md "$out/$name/INSTALL.md"
+cp docs/BACKUP.md "$out/$name/BACKUP.md"
 
 tar -C "$out" --owner=0 --group=0 -czf "$out/$name.tar.gz" "$name"
 (cd "$out" && sha256sum "$name.tar.gz" > SHA256SUMS)

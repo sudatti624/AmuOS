@@ -1,11 +1,16 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
+	"github.com/sudatti624/AmuOS/internal/recovery"
+	"github.com/sudatti624/AmuOS/internal/store"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/sudatti624/AmuOS/internal/statelock"
 )
@@ -60,5 +65,73 @@ func TestInvalidTLSDoesNotCreateLockDirectory(t *testing.T) {
 	}
 	if _, err := os.Stat(directory); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("invalid TLS initialized state: %v", err)
+	}
+}
+
+func TestMaintenanceModesAndCLIRoundTrip(t *testing.T) {
+	root := t.TempDir()
+	database := filepath.Join(root, "source", "amuos.db")
+	for _, args := range [][]string{
+		{"--backup-out", "out.age"},
+		{"--recipient", "age1invalid"},
+		{"--restore-from", "in.age"},
+		{"--recovery-key-file", "key"},
+		{"--backup-out", "out.age", "--recipient", "bad", "--bootstrap-file", "token"},
+		{"--restore-from", "in.age", "--recovery-key-file", "key", "--version"},
+		{"--generate-recovery-key", "key", "--bootstrap-file", "token"},
+	} {
+		if err := runWithArgs(t, append([]string{"--db", database}, args...)...); err == nil {
+			t.Fatalf("accepted invalid mode: %v", args)
+		}
+	}
+	if _, err := os.Stat(filepath.Dir(database)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("invalid mode created state")
+	}
+	keyFile := filepath.Join(root, "recovery.key")
+	if err := runWithArgs(t, "--generate-recovery-key", keyFile); err != nil {
+		t.Fatal(err)
+	}
+	key, err := os.ReadFile(keyFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := runWithArgs(t, "--generate-recovery-key", keyFile); err == nil {
+		t.Fatal("overwrote recovery key")
+	}
+	after, _ := os.ReadFile(keyFile)
+	if string(key) != string(after) {
+		t.Fatal("recovery identity changed")
+	}
+	// Recover the public recipient without ever printing the private key.
+	lines := strings.Split(strings.TrimSpace(string(key)), "\n")
+	if len(lines) != 2 {
+		t.Fatal("invalid generated identity")
+	}
+	// The public recipient is independently recovered through age's parser in
+	// the recovery package tests; generate a second key for this CLI round trip.
+	otherKey := filepath.Join(root, "cli.key")
+	recipient, err := recovery.GenerateRecoveryKey(otherKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := runWithArgs(t, "--db", database, "--bootstrap-file", filepath.Join(root, "setup-token")); err != nil {
+		t.Fatal(err)
+	}
+	archive := filepath.Join(root, "backup.age")
+	if err := runWithArgs(t, "--db", database, "--backup-out", archive, "--recipient", recipient); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(root, "restored", "amuos.db")
+	if err := runWithArgs(t, "--db", target, "--restore-from", archive, "--recovery-key-file", otherKey); err != nil {
+		t.Fatal(err)
+	}
+	db, err := store.Open(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	// A backup of a not-yet-configured instance cannot revive its old token.
+	if _, err := db.PrepareBootstrap(context.Background(), time.Now()); err != nil {
+		t.Fatal(err)
 	}
 }
