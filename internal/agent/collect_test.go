@@ -122,7 +122,7 @@ func TestSamplesSurviveOutagesWithinTheBufferLimits(t *testing.T) {
 	if detail.Info == nil || detail.Info.Hostname != "managed-01" || detail.Latest == nil || *detail.Latest.CPU != 4 || !detail.Latest.Current {
 		t.Fatalf("detail: %+v %+v", detail.Info, detail.Latest)
 	}
-	if caps := detail.Agent.Capabilities; len(caps) != 3 || caps[1] != "metrics" {
+	if caps := detail.Agent.Capabilities; len(caps) != 4 || caps[1] != "metrics" {
 		t.Fatalf("capabilities: %v", caps)
 	}
 	history, err := cp.db.MetricHistory(ctx, cp.owner.Token, host.ID, "1h", time.Now().Add(time.Minute))

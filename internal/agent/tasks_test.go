@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"github.com/sudatti624/AmuOS/internal/agentca"
 	"github.com/sudatti624/AmuOS/internal/store"
 	"os"
 	"testing"
@@ -44,7 +45,7 @@ func TestCollectTaskAndCrashJournalNeverReexecute(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	delivery, err := cp.db.PollTasks(ctx, leaf.SerialNumber.Text(16), id.AgentID, nil, time.Now())
+	delivery, err := cp.db.PollTasks(ctx, agentca.SerialString(leaf.SerialNumber), id.AgentID, nil, time.Now())
 	// The canonical serial may have leading zero padding; get it from the
 	// same certificate parser used by the HTTP middleware.
 	if err != nil {

@@ -8,14 +8,16 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"time"
 )
 
 type localTask struct {
-	Delivery     store.TaskDelivery `json:"delivery"`
-	Outcome      string             `json:"outcome"`
-	Acknowledged bool               `json:"acknowledged"`
+	Delivery       store.TaskDelivery `json:"delivery"`
+	Outcome        string             `json:"outcome"`
+	Acknowledged   bool               `json:"acknowledged"`
+	TerminalAt     int64              `json:"terminal_at,omitempty"`
+	AcknowledgedAt int64              `json:"acknowledged_at,omitempty"`
+	ServerState    string             `json:"server_state,omitempty"`
 }
 
 func (a *Agent) syncTasks(ctx context.Context) error {
@@ -28,50 +30,11 @@ func (a *Agent) syncTasks(ctx context.Context) error {
 	if err := os.MkdirAll(directory, 0700); err != nil {
 		return err
 	}
-	entries, err := os.ReadDir(directory)
-	if err != nil {
+	if err := a.scanTaskJournal(ctx); err != nil {
+		a.tasksBlocked = true
 		return err
 	}
-	// Results awaiting acknowledgement always take precedence over new work.
-	for _, entry := range entries {
-		if strings.HasPrefix(entry.Name(), ".tmp-") {
-			if _, err := readPrivate(filepath.Join(directory, entry.Name())); err != nil {
-				return err
-			}
-			if err := os.Remove(filepath.Join(directory, entry.Name())); err != nil {
-				return err
-			}
-			continue
-		}
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
-			return errors.New("invalid task journal entry")
-		}
-		data, err := readPrivate(filepath.Join(directory, entry.Name()))
-		if err != nil {
-			return err
-		}
-		var local localTask
-		if err := json.Unmarshal(data, &local); err != nil {
-			return err
-		}
-		if local.Acknowledged {
-			continue
-		}
-		if local.Outcome == "" {
-			local.Outcome = "unknown"
-			if err := a.saveTask(local); err != nil {
-				return err
-			}
-		}
-		if err := a.reportTask(ctx, &local); err != nil {
-			return err
-		}
-	}
-	// A bounded persistent tombstone set refuses more work rather than forgetting
-	// a task that could be redelivered. Entries are never removed before ACK.
-	if len(entries) >= 10000 {
-		return errors.New("task journal is full")
-	}
+	a.tasksBlocked = false
 	var reply struct {
 		Task *store.TaskDelivery `json:"task"`
 	}
@@ -152,6 +115,9 @@ func (a *Agent) saveTask(local localTask) error {
 	if !safeTaskID(local.Delivery.ID) {
 		return errors.New("invalid task journal ID")
 	}
+	if !local.Acknowledged && local.TerminalAt == 0 && (local.Outcome == "succeeded" || local.Outcome == "failed") {
+		local.TerminalAt = max(a.clock().Unix(), local.Delivery.RunDeadline)
+	}
 	data, err := json.Marshal(local)
 	if err != nil {
 		return err
@@ -180,7 +146,9 @@ func (a *Agent) reportTask(ctx context.Context, local *localTask) error {
 	}
 	result := store.TaskResult{TaskReceipt: store.TaskReceipt{ID: local.Delivery.ID, AttemptID: local.Delivery.AttemptID, InputHash: local.Delivery.InputHash}, Outcome: local.Outcome}
 	var ack struct {
-		Acknowledged bool `json:"acknowledged"`
+		Acknowledged bool   `json:"acknowledged"`
+		State        string `json:"state"`
+		FinishedAt   *int64 `json:"finished_at"`
 	}
 	if err := post(ctx, a.client(&cert), a.cfg.AgentServer+"/agent/v1/tasks/"+local.Delivery.ID+"/result", result, &ack); err != nil {
 		return err
@@ -189,5 +157,15 @@ func (a *Agent) reportTask(ctx context.Context, local *localTask) error {
 		return errors.New("task result not acknowledged")
 	}
 	local.Acknowledged = true
+	local.ServerState = ack.State
+	if ack.FinishedAt != nil {
+		local.TerminalAt = max(local.TerminalAt, *ack.FinishedAt)
+	}
+	if local.TerminalAt == 0 && (local.Outcome == "succeeded" || local.Outcome == "failed") {
+		local.TerminalAt = max(a.clock().Unix(), local.Delivery.RunDeadline)
+	}
+	if local.AcknowledgedAt == 0 {
+		local.AcknowledgedAt = max(a.clock().Unix(), local.TerminalAt, local.Delivery.RunDeadline)
+	}
 	return a.saveTask(*local)
 }

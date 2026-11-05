@@ -76,14 +76,18 @@ type Agent struct {
 	// Samples of this run wait in memory until the Control Plane accepts
 	// them. A restart starts a new run, so the server never confuses the
 	// sequence numbers of two runs.
-	runID       string
-	seq         int64
-	pending     []pendingSample
-	pendingSize int
-	dropped     int
-	supported   bool
-	nextInfo    time.Time
-	interval    time.Duration
+	runID            string
+	seq              int64
+	pending          []pendingSample
+	pendingSize      int
+	dropped          int
+	supported        bool
+	nextInfo         time.Time
+	interval         time.Duration
+	nextTaskSweep    time.Time
+	taskAckCache     map[string]journalSignature
+	tasksBlocked     bool
+	taskReportCursor string
 }
 
 type pendingSample struct {
@@ -476,7 +480,11 @@ func (a *Agent) Run(ctx context.Context) error {
 
 func (a *Agent) capabilities() []string {
 	if a.supported {
-		return []string{"heartbeat", "metrics", "host_info"}
+		caps := []string{"heartbeat", "metrics", "host_info"}
+		if !a.tasksBlocked {
+			caps = append(caps, "tasks")
+		}
+		return caps
 	}
 	return []string{"heartbeat"}
 }
@@ -526,9 +534,6 @@ func (a *Agent) sync(ctx context.Context) error {
 	if err := a.Beat(ctx); err != nil {
 		return err
 	}
-	if err := a.syncTasks(ctx); err != nil {
-		return err
-	}
 	certificate, _, _, err := a.loadCredential()
 	if err != nil {
 		return err
@@ -553,13 +558,13 @@ func (a *Agent) sync(ctx context.Context) error {
 	}
 	now := a.clock()
 	if !a.supported || now.Before(a.nextInfo) {
-		return nil
+		return a.syncTasksSafely(ctx)
 	}
 	info, err := a.cfg.Collector.HostInfo(now)
 	if err != nil {
 		slog.Warn("host information collection failed", "error", err)
 		a.nextInfo = now.Add(infoEvery)
-		return nil
+		return a.syncTasksSafely(ctx)
 	}
 	err = post(ctx, client, a.cfg.AgentServer+"/agent/v1/host-info", info, nil)
 	if invalid(err) {
@@ -568,6 +573,24 @@ func (a *Agent) sync(ctx context.Context) error {
 		return fmt.Errorf("send host information: %w", err)
 	}
 	a.nextInfo = now.Add(infoEvery)
+	return a.syncTasksSafely(ctx)
+}
+
+func (a *Agent) syncTasksSafely(ctx context.Context) error {
+	taskCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	err := a.syncTasks(taskCtx)
+	var status statusError
+	if errors.Is(err, ErrRejected) || (errors.As(err, &status) && status.status == http.StatusUnauthorized) {
+		return ErrRejected
+	}
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	if err != nil {
+		a.tasksBlocked = true
+		slog.Warn("task synchronization failed; monitoring continues", "error", err)
+	}
 	return nil
 }
 

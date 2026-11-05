@@ -36,7 +36,12 @@ func (s *Server) taskResult(w http.ResponseWriter, r *http.Request) {
 		s.failure(w, r, err)
 		return
 	}
-	respond(w, 200, map[string]bool{"acknowledged": true})
+	receipt, err := s.store.TaskResultAcknowledgement(r.Context(), p.Serial, p.AgentID, body, s.clock())
+	if err != nil {
+		s.failure(w, r, err)
+		return
+	}
+	respond(w, 200, receipt)
 }
 func (s *Server) recordSystemd(w http.ResponseWriter, r *http.Request) {
 	var body metrics.SystemdSnapshot

@@ -201,3 +201,4 @@ POST /agent/v1/tasks/poll は {} で資格情報の所属ホストのタスク�
 POST /agent/v1/tasks/{id}/result はid、attempt_id、input_hash、outcome（succeeded/failed/unknown）を送り、acknowledged=trueが受領確認となる。同一結果の再送は成功し、異なる結果は409、別ホストの試行は404。受付期限切れの新規配送は行わない。実行期限後の結果はunknownとして保持する。状態遷移・監査は同じトランザクションで確定する。
 
 POST /agent/v1/systemd はcollected_at、available、truncated、units（unit/load/active/sub）を送る。所属ホストは資格情報から決定する。GET /api/v1/hosts/{id}/systemd は親ホストのhost.read範囲に限定し、received_atを加えた最終状態、未受信ならnullを返す。失効後の書込みは拒否する。変更操作は提供しない。
+タスク結果の受領応答は acknowledged に加えて state と finished_at（未確定ならnull）を返す。Agentはこの状態と時刻を保持の判断に使い、サーバーでunknownとなった結果を終端として清掃しない。heartbeatのtasks capabilityは、新規タスクを受領できる間だけ送る。満杯などで受領できない場合は次のheartbeatから外れ、空きが戻れば復帰する。

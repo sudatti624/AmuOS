@@ -14,6 +14,10 @@
 - OSS公開準備: Apache-2.0のLICENSE、CONTRIBUTING.md、SECURITY.md、README整備、モジュール名を `github.com/sudatti624/AmuOS` へ変更。変更後のgo fmt/vet/test・Windows/Linuxビルドを再実行しPASS（`-buildvcs=false`）。
 
 ## 検証証跡
+
+### Agentジャーナルの期限清掃と監視継続
+
+ACK済み終端の30日保持と1時間ごとの清掃、旧記録の時刻移行、時計巻戻り時の削除延期を追加した（ADR-022）。タスク処理を監視送信後へ分離し、不正記録を残してほかの記録を処理する。満杯時は新規受領を止め、tasks capabilityを外す。ADR-021は本文を変えず番号順へ移動した。Windowsでgofmt・Go全テスト・Windows/Linux vetが成功。Web check・単体13件・build・Playwright 5件が成功。10000件の満杯、壊れたJSON/想定外ファイル、報告失敗でも監視が届くこと、期限境界・旧形式・時計巻戻り・再起動・清掃後の再配送拒否・資格情報拒否を試験した。遅延結果がサーバーでunknownとなる場合の保持も確認した。実機での電源断・時刻操作は未確認。
 ### 順序5・区切り3: タスク配送とsystemd状態
 
 スキーマv12にtask_attemptsとsystemd_statesを追加し、backupTablesへ登録。mTLSのpoll/result、実行前の最新認可、同じ試行の再配送、Agentの実行前・結果・ACKの永続記録を実装した。実行中の再起動・期限切れ・確認できない通信結果はunknownとし、自動再実行しない。systemdは無特権systemctlの読取りで、状態だけを取得時刻・受信時刻とともに保存し、ホスト詳細に表示する。API43・Agent7・画面配信11。Agentユニットでの登録・監視値・systemd状態・collect・停止時のControl Plane生存確認をCIへ追加した。CI run 42039972671で、Windows/Linux Go・vet・race、Web単体/E2E、Ubuntu/Debian導入、Agentユニット、空のDebian復元が成功した。ローカルでもGo全テスト・両OS vet・Web check/test/build・E2E 5件が成功。

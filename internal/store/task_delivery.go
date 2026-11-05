@@ -28,6 +28,34 @@ type TaskResult struct {
 	Outcome string `json:"outcome"`
 }
 
+// The receipt exposes the confirmed server state so a late result retained as
+// unknown cannot be mistaken for a terminal journal entry by the Agent.
+type TaskAcknowledgement struct {
+	Acknowledged bool   `json:"acknowledged"`
+	State        string `json:"state"`
+	FinishedAt   *int64 `json:"finished_at"`
+}
+
+func (s *Store) TaskResultAcknowledgement(ctx context.Context, serial, agentID string, result TaskResult, now time.Time) (TaskAcknowledgement, error) {
+	var receipt TaskAcknowledgement
+	err := s.transaction(ctx, func(tx *sql.Tx) error {
+		p, err := agentAuthenticate(ctx, tx, serial, agentID, now)
+		if err != nil {
+			return err
+		}
+		err = tx.QueryRow(`SELECT t.state,t.finished_at FROM tasks t JOIN task_attempts a ON a.task_id=t.id WHERE t.id=? AND t.host_id=? AND a.agent_id=? AND a.attempt_id=? AND a.input_hash=? AND a.outcome=?`, result.ID, p.HostID, p.AgentID, result.AttemptID, result.InputHash, result.Outcome).Scan(&receipt.State, &receipt.FinishedAt)
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		receipt.Acknowledged = true
+		return nil
+	})
+	return receipt, err
+}
+
 func (s *Store) PollTasks(ctx context.Context, serial, agentID string, receipt *TaskReceipt, now time.Time) (*TaskDelivery, error) {
 	var delivery *TaskDelivery
 	err := s.transaction(ctx, func(tx *sql.Tx) error {
