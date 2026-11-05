@@ -229,3 +229,9 @@ Ctrl+C（またはSIGTERM）で停止します。
 ## ライセンス
 
 AmuOSはApache License 2.0で公開しています（`LICENSE`）。同梱している他のソフトウェアのライセンスは `THIRD_PARTY_LICENSES.md` にあります。AmuOSのロゴはApache License 2.0の対象外です。詳しくはリポジトリのREADMEをご覧ください。
+
+### Agentのサービス状態収集
+
+Agentは /usr/bin/systemctl の読み取りだけを使い、サービスの一覧とload/active/sub状態を取得します。開始・停止・変更は行いません。配布ユニットのAF_UNIXでsystem busへ接続し、ネットワーク情報の取得にはAF_NETLINKを使います。追加の権限を与える必要はありません。systemctlやsystem busを利用できない環境では「取得できない」と表示します。サービス一覧は最大256件です。
+
+タスクの受領・実行前記録・結果・確認はAgent状態ディレクトリのtasks/に保存します。未確認の記録を削除すると重複実行の判定ができなくなるため、そのまま保持してください。最大10000件で新規受領を停止します。自動削除・自動再実行は提供していません。

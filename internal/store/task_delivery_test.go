@@ -32,6 +32,18 @@ func TestTaskDeliveryCredentialDeadlineReplayAndRestart(t *testing.T) {
 	if err := s.RecoverTasks(ctx, now); err != nil {
 		t.Fatal(err)
 	}
+	var database string
+	if err := s.db.QueryRow("SELECT file FROM pragma_database_list WHERE name='main'").Scan(&database); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s, err = Open(database)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
 	result := TaskResult{TaskReceipt: receipt, Outcome: "succeeded"}
 	if err := s.RecordTaskResult(ctx, agent.serial, agent.credential.AgentID, result, now); err != nil {
 		t.Fatal(err)
@@ -48,6 +60,9 @@ func TestTaskDeliveryCredentialDeadlineReplayAndRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	other := enrollAgent(t, s, owner, otherHost, ca)
+	if delivery, err := s.PollTasks(ctx, other.serial, other.credential.AgentID, nil, now); err != nil || delivery != nil {
+		t.Fatalf("other host poll %+v %v", delivery, err)
+	}
 	if err := s.RecordTaskResult(ctx, other.serial, other.credential.AgentID, result, now); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("other host %v", err)
 	}
