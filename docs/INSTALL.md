@@ -124,18 +124,19 @@ systemctl start amuos-controlplane
      /var/backups/amuos/amuos-controlplane.previous
    ```
 
-4. 新しい本体で、いまのデータベースを使えるか確かめます。この確認ではデータベースに何も書き込みません。
+4. 新しい本体を専用ユーザーが実行できる場所に置き、いまのデータベースを使えるか確かめます。この確認ではデータベースに何も書き込みません。
 
    ```sh
-   runuser -u amuos -- ./amuos-controlplane --db /var/lib/amuos/amuos.db --check-db
+   install -m 755 amuos-controlplane /usr/local/bin/amuos-controlplane.new
+   runuser -u amuos -- /usr/local/bin/amuos-controlplane.new --db /var/lib/amuos/amuos.db --check-db
    ```
 
-   `migration_required` が `true` の場合は、起動時にデータベースが新しい形式へ移行されます。データベースのほうが新しい場合や、壊れている場合は失敗するので、そのときは差し替えずに元の版で起動し直してください。
+   `migration_required` が `true` の場合は、起動時にデータベースが新しい形式へ移行されます。データベースのほうが新しい場合や、壊れている場合は失敗するので、そのときは `/usr/local/bin/amuos-controlplane.new` を削除し、元の版で起動し直してください。
 
 5. 本体を差し替えて起動し、ログインできること、ホストや監査ログが残っていることを確かめます。
 
    ```sh
-   install -m 755 amuos-controlplane /usr/local/bin/amuos-controlplane
+   mv /usr/local/bin/amuos-controlplane.new /usr/local/bin/amuos-controlplane
    systemctl start amuos-controlplane
    ```
 

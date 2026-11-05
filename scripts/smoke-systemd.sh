@@ -16,7 +16,13 @@ origin="https://localhost:8443"
 password="correct horse battery staple"
 db=/var/lib/amuos/amuos.db
 as_amuos() { runuser -u amuos -- "$@"; }
-fail() { echo "FAIL: $*" >&2; journalctl -u amuos-controlplane --no-pager -n 50 >&2 || true; exit 1; }
+# ::error:: lines surface in the CI annotations, which are readable without logging in.
+fail() {
+  echo "::error::FAIL: $*"
+  journalctl -u amuos-controlplane --no-pager -n 20 -o cat 2>/dev/null | sed "s/^/::error::journal: /" || true
+  exit 1
+}
+trap 'echo "::error::line $LINENO: $BASH_COMMAND"' ERR
 api() {
   curl -ksS -b "$work/cookies" -c "$work/cookies" -H "Origin: $origin" -H "Content-Type: application/json" "$@"
 }
@@ -88,10 +94,10 @@ as_amuos /usr/local/bin/amuos-controlplane --db "$db" \
   --backup-out /var/backups/amuos/pre-update.age --recipient "$(cat /root/amuos-recovery/recipient)" \
   --addr "$AMUOS_ADDR" --origin "$AMUOS_ORIGIN" > "$work/backup.json"
 install -m 700 -o amuos -g amuos /usr/local/bin/amuos-controlplane /var/backups/amuos/amuos-controlplane.previous
-install -m 755 "$next" "$work/amuos-controlplane.new"
-as_amuos "$work/amuos-controlplane.new" --db "$db" --check-db > "$work/check.json" || fail "update check"
+install -m 755 "$next" /usr/local/bin/amuos-controlplane.new
+as_amuos /usr/local/bin/amuos-controlplane.new --db "$db" --check-db > "$work/check.json" || fail "update check"
 grep -q '"migration_required":false' "$work/check.json" || fail "unexpected migration: $(cat "$work/check.json")"
-install -m 755 "$work/amuos-controlplane.new" /usr/local/bin/amuos-controlplane
+mv /usr/local/bin/amuos-controlplane.new /usr/local/bin/amuos-controlplane
 new_version="$(/usr/local/bin/amuos-controlplane --version)"
 [ "$new_version" != "$old_version" ] || fail "update did not change the version"
 systemctl start amuos-controlplane
