@@ -8,7 +8,7 @@ archive="$(realpath "${1:?usage: scripts/smoke-install.sh <archive.tar.gz>}")"
 work="$(mktemp -d)"
 pid=""
 agent_pid=""
-trap '[ -n "$pid" ] && kill "$pid" 2>/dev/null; [ -n "$agent_pid" ] && kill "$agent_pid" 2>/dev/null; rm -rf "$work"' EXIT
+trap '[ -z "$pid" ] || kill "$pid" 2>/dev/null || true; [ -z "$agent_pid" ] || kill "$agent_pid" 2>/dev/null || true; rm -rf "$work"' EXIT
 cd "$work"
 
 tar -xzf "$archive"
@@ -95,6 +95,7 @@ for _ in $(seq 50); do
   sleep 0.2
 done
 kill "$agent_pid"; wait "$agent_pid" 2>/dev/null || true
+agent_pid=""
 [ -n "$connected" ] || { echo "FAIL: agent did not connect" >&2; exit 1; }
 stop
 
@@ -136,11 +137,13 @@ csrf=$(login)
 [ -n "$csrf" ] || { echo "FAIL: login after restore" >&2; exit 1; }
 api "$origin/api/v1/hosts" | grep -q '"name":"smoke-host"' || { echo "FAIL: host after restore" >&2; exit 1; }
 api "$origin/api/v1/audit" | grep -q 'restore.complete' || { echo "FAIL: restore audit" >&2; exit 1; }
-# A restore issues a new Agent CA, so the restored Agent credential is refused.
-if timeout 10 ./amuos-agent --state-dir agent-state --server https://127.0.0.1:8443 \
-  --agent-server https://127.0.0.1:9443 --ca-file data/server.pem 2>/dev/null; then
-  echo "FAIL: agent credential survived the restore" >&2; exit 1
-fi
+# A restore issues a new Agent CA, so the restored Agent credential fails the
+# TLS handshake. The Agent keeps retrying until it is stopped.
+status=0
+timeout 5 ./amuos-agent --state-dir agent-state --server https://127.0.0.1:8443 \
+  --agent-server https://127.0.0.1:9443 --ca-file data/server.pem 2> agent.log || status=$?
+expect "$status" 124 "agent after restore keeps retrying"
+grep -q 'heartbeat failed.*tls:' agent.log || { echo "FAIL: agent credential survived the restore" >&2; cat agent.log >&2; exit 1; }
 api "$origin/api/v1/hosts" | grep -q '"name":"agent-host","state":"pending"' || { echo "FAIL: agent host after restore" >&2; exit 1; }
 stop
 

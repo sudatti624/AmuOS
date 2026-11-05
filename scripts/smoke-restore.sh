@@ -9,7 +9,7 @@ archive="$(realpath "${1:?usage: scripts/smoke-restore.sh <archive.tar.gz> <back
 backup="$(realpath "${2:?usage: scripts/smoke-restore.sh <archive.tar.gz> <backup-dir>}")"
 work="$(mktemp -d)"
 pid=""
-trap '[ -n "$pid" ] && kill "$pid" 2>/dev/null; rm -rf "$work"' EXIT
+trap '[ -z "$pid" ] || kill "$pid" 2>/dev/null || true; rm -rf "$work"' EXIT
 cd "$work"
 
 origin="https://localhost:8443"
