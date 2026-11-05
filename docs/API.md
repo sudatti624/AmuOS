@@ -30,7 +30,7 @@
 | 500 | internal_error（DB・監査等の詳細を外部へ公開しない） |
 | 503 | auth_busy / audit_unavailable、Retry-After付き |
 
-セッション認証と最新割当の取得・状態更新・監査は同じトランザクション。Origin/JSON形式の不正は業務処理前に拒否し、拒否イベントを監査する。ホスト削除・Agent・タスク・バックアップAPIは未公開。
+セッション認証と最新割当の取得・状態更新・監査は同じトランザクション。Origin/JSON形式の不正は業務処理前に拒否し、拒否イベントを監査する。ホスト削除・Agent・バックアップAPIは未公開。タスクAPIは下の「タスク」を参照。
 
 ## ホスト登録枠の冪等性
 
@@ -41,6 +41,22 @@
 ホスト作成・入力/キーのハッシュ・結果参照・監査は一つのSQLiteトランザクションで保存する。応答が失われても、再起動後の再要求で別ホストを作らない。結果参照は30日保持する。その後は自動処理で参照と入力ハッシュを除去し、キーのハッシュと要求者・操作・範囲の拒否記録を保持するため、古いキーを再利用して新規作成することはできない。リクエストIDは各要求で新しく、冪等キーとは別の識別子である。
 
 この契約は順序1のホスト登録枠作成に適用する。招待トークンは一回限り、グループ名は一意、PUTは各APIの状態置換として扱う。Agent/外部実行のタスクは順序4・5で別の永続状態機械を実装する。結果不明の変更操作に新しいキーを自動発行して再実行しない。
+
+## タスク
+
+管理対象ホストへの読み取り専用の作業（現在は `collect` のみ）を永続化する。任意コマンドの入力は受け付けない。Agentは順序5で実装するため、現時点では配送されず、受付期限の60秒を過ぎたタスクは自動処理で `timed_out`（reason: not_dispatched）になる。
+
+| メソッド・パス | 入力 | 認可・結果 |
+|---|---|---|
+| POST /hosts/{id}/tasks | Cookie、X-CSRF-Token、Idempotency-Key、`{"operation":"collect"}` | 対象ホストのhost.collect（Admin・Operator）。201、state: queued。同じ要求者・ホスト・キーの再要求は元のタスクとIdempotency-Replayed: true。1ホストの未完了タスクは10件まで（超過は409） |
+| GET /tasks | Cookie | host.readのホストのタスクだけ、新しい順に100件まで |
+| GET /tasks/{id} | Cookie | 親ホストのhost.read。範囲外・不存在は404 |
+| POST /tasks/{id}/cancel | Cookie、X-CSRF-Token、`{}` | 親ホストのhost.collect。queuedのみcancelledにする。配送後は実行の有無を確認できないため409 |
+| POST /tasks/{id}/resolve | Cookie、X-CSRF-Token、`{"resolution":"failed","evidence":"…"}`（resolutionはsucceededかfailed、evidenceは1〜500バイト） | 親ホストのhost.manage（Admin）。unknownのみ。根拠を監査に記録し、再実行はしない |
+
+状態は queued・dispatching・running・succeeded・failed・timed_out・cancelled・unknown。範囲外のホスト・タスクは存在しないものと同じ404を返す。作成・取消・解決と監査は同じトランザクションで確定する。
+
+自動処理（毎分）は、受付期限切れのqueuedをtimed_out、実行期限切れのdispatching・runningをunknownにし、終了から30日たったタスクを削除する。unknownは人が解決するまで残す。起動時には前回の停止で結果が分からなくなったdispatching・runningをunknownにする。復元したDBでは、queuedを含む未完了のタスクをすべてunknownにする。終了したタスクを削除したあとは、同じキーで新しいタスクを作れる（読み取り専用のため重複しても副作用はない）。
 
 ## リクエストIDと拒否の監査
 

@@ -82,6 +82,12 @@ func TestAuthorizationContractCoversEveryRoute(t *testing.T) {
 			body = map[string]any{"user_id": "other-user"}
 		case path == "/api/v1/audit/retention":
 			body = map[string]any{"retention_days": 180}
+		case strings.HasSuffix(path, "/tasks"):
+			body = map[string]any{"operation": "collect"}
+		case strings.HasSuffix(path, "/resolve"):
+			body = map[string]any{"resolution": "failed", "evidence": "checked on the host"}
+		case strings.HasSuffix(path, "/cancel"):
+			body = map[string]any{}
 		case path == "/api/v1/audit/retention/run":
 			body = map[string]any{}
 		case path == "/api/v1/auth/reauthenticate":
@@ -121,6 +127,10 @@ func TestAuthorizationContractCoversEveryRoute(t *testing.T) {
 	groups, err := db.Groups(t.Context(), owner.Token, time.Now())
 	if err != nil || len(groups) != 0 {
 		t.Fatal("unauthorized group mutation", groups, err)
+	}
+	tasks, err := db.Tasks(t.Context(), owner.Token, time.Now())
+	if err != nil || len(tasks) != 0 {
+		t.Fatal("unauthorized task mutation", tasks, err)
 	}
 	users, err := db.Users(t.Context(), owner.Token, time.Now())
 	if err != nil || len(users) != 1 || !users[0].Enabled {

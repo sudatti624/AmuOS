@@ -15,7 +15,7 @@
 
 ブラウザ→HTTPS API、Control Plane→SQLite/鍵ファイル、ホスト→Agent専用リスナー、OS管理者→ローカル復旧を独立した境界とする。Origin・転送ヘッダー・要求者の自己申告IDを権限として信用しない。
 
-- 実装済み全ルート（API 27・画面配信10）の認証・操作・範囲・CSRF・再認証はAPI_AUTHORIZATION.csvに固定する。自動試験がchiの全ルートと照合し、全sessionルートの未認証拒否と変更要求のCSRF欠落拒否を検証する。
+- 実装済み全ルート（API 32・画面配信10）の認証・操作・範囲・CSRF・再認証はAPI_AUTHORIZATION.csvに固定する。自動試験がchiの全ルートと照合し、全sessionルートの未認証拒否と変更要求のCSRF欠落拒否を検証する。
 - Ownerはユーザー直接・全体のみ。Adminは自己の操作/範囲の部分集合だけを付与できる。OwnerとOwnerを含むグループの変更は再認証済みOwnerに限定する。
 - 自動保持と冪等記録の期限処理は固定主体system。設定に従った期限処理だけを行い、権限や資格情報を新規付与しない。ブラウザからsystemを指定する入力・エンドポイントは設けない。
 - 後続の配信は購読開始だけでなくイベント配送時も最新の有効性・範囲・authorization_versionを照合する。失効時は配信を終了し、古い接続の再利用を許可しない。
@@ -73,7 +73,9 @@ Agent/証明書/登録要求/チャレンジの設計データは以下に固定
 
 Agent要求はAgent単位120回/分、未登録/回復はIP単位5回/15分。TLS未認証はHTTP処理へ到達させない。再接続は1〜60秒の指数バックオフとジッター。接続を失敗扱いにする前に既存結果を照合する。
 
-## 後続: タスク・障害回復（順序4・5、未実装）
+## タスク・障害回復（順序4で基盤を実装、Agentへの配送は順序5）
+
+スキーマv9のtasks、API、期限処理、起動時と復元時の保留を実装した（API.md「タスク」、ADR-018）。dispatching・running・試行・Agentの受付/結果の保存と、読み取りの再試行は、Agentとともに順序5で実装する。
 
 タスクはtask_id、requester_id、operation、target_id、input_hash、idempotency_key_hash、state、attempt_id、受付/実行期限、結果/理由、関連request_id、時刻を保存する。要求者・操作・対象・冪等キーを一意とする。試行とAgentの受付/結果も永続化し、結果受領確認前は消去しない。
 
@@ -93,7 +95,7 @@ APIはsession・CSRFで `POST /api/v1/hosts/{id}/tasks`（collectのみ、host.c
 
 ## バックアップ形式・復元（順序4、一部実装）
 
-age v1形式・X25519 recipientを採用し、filippo.io/age v1.3.2（BSD-3-Clause）を導入した。現在のSQLite状態の停止中バックアップ・同版復元を提供する。コマンドと制限はBACKUP.md、実装判断はADR-016、検証証跡はPROGRESS.md。AgentのCA・保存鍵の再暗号化・汎用タスク保留・独立環境での総合復元は未実装または未検証。
+age v1形式・X25519 recipientを採用し、filippo.io/age v1.3.2（BSD-3-Clause）を導入した。現在のSQLite状態の停止中バックアップ・同版復元を提供する。コマンドと制限はBACKUP.md、実装判断はADR-016、検証証跡はPROGRESS.md。AgentのCA・保存鍵の再暗号化は、その対象を作る順序5で実装する。復元時の未完了タスクの保留は実装済み。別環境への復元はCIのDebianコンテナで確認し、実機の独立環境での総合復元は順序6で行う。
 
 暗号化ストリームの内容はtarで、許可する通常ファイルだけを含める。manifest.json（最大64KiB）、database.sqlite、config.json、keys.jsonを必須とする。manifestには形式版1、製品版、スキーマ版、設定版、バックアップID、UTC一貫性境界、各ファイルのサイズ・SHA-256、鍵ID・対象一覧を含める。復旧用秘密鍵は含めず、別の障害領域に保管する。大きなDBを全量メモリへ読み込まない。
 

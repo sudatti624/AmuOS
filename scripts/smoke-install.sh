@@ -80,6 +80,11 @@ mkdir -m 700 recovery
 recipient="$(cat recovery/recipient)"
 ./amuos-controlplane --db data/amuos.db --backup-out recovery/snapshot.age \
   --recipient "$recipient" --addr 127.0.0.1:8443 --origin "$origin" > recovery/manifest.json
+# Hand the backup to a separate, empty environment for an independent restore.
+if [ -n "${AMUOS_EXPORT_BACKUP:-}" ]; then
+  mkdir -p "$AMUOS_EXPORT_BACKUP"
+  cp recovery/snapshot.age recovery/identity.key recovery/manifest.json "$AMUOS_EXPORT_BACKUP/"
+fi
 if ./amuos-controlplane --db data/amuos.db --backup-out recovery/snapshot.age \
   --recipient "$recipient" >/dev/null 2>&1; then
   echo "FAIL: backup overwrote an existing archive" >&2; exit 1

@@ -15,9 +15,14 @@ import (
 
 func SchemaVersion() int { return len(migrationNames) }
 
+// backupTables are the tables whose row counts a backup manifest records.
+var backupTables = []string{"users", "groups", "memberships", "grants", "sessions", "hosts", "invitations", "invitation_grants", "bootstrap", "audit_events", "audit_settings", "idempotency_records", "local_maintenance", "tasks"}
+
+func BackupTables() []string { return append([]string(nil), backupTables...) }
+
 func (s *Store) BackupCounts(ctx context.Context) (map[string]int64, error) {
 	counts := map[string]int64{}
-	for _, table := range []string{"users", "groups", "memberships", "grants", "sessions", "hosts", "invitations", "invitation_grants", "bootstrap", "audit_events", "audit_settings", "idempotency_records", "local_maintenance"} {
+	for _, table := range backupTables {
 		var count int64
 		// Table identifiers are a compile-time allowlist, never external input.
 		if err := s.db.QueryRowContext(ctx, "SELECT count(*) FROM "+table).Scan(&count); err != nil {
@@ -251,6 +256,9 @@ func (s *Store) PrepareRestoredState(ctx context.Context, id string, now time.Ti
 	}
 	return s.transaction(ctx, func(tx *sql.Tx) error {
 		if err := auditWithDetails(ctx, tx, now, "local", "restore.start", id, "", "success", "validated", details); err != nil {
+			return err
+		}
+		if err := holdOpenTasks(ctx, tx, now, "'queued','dispatching','running'", "restored"); err != nil {
 			return err
 		}
 		for _, query := range []string{

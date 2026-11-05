@@ -98,8 +98,14 @@ func (m Manifest) validate(version string) error {
 	if len(m.Files) != 3 {
 		return errors.New("invalid backup file list")
 	}
-	if len(m.Counts) != 13 {
+	tables := store.BackupTables()
+	if len(m.Counts) != len(tables) {
 		return errors.New("invalid backup record counts")
+	}
+	for _, table := range tables {
+		if _, ok := m.Counts[table]; !ok {
+			return errors.New("invalid backup record counts")
+		}
 	}
 	for _, count := range m.Counts {
 		if count < 0 {

@@ -105,6 +105,14 @@ jobs:
           path: release
       - run: cd release && sha256sum -c SHA256SUMS
       - run: bash scripts/smoke-install.sh release/*.tar.gz
+        env:
+          AMUOS_EXPORT_BACKUP: ${{ runner.temp }}/exported-backup
+      # Dummy test data only: the owner password and recovery key exist for this check.
+      - uses: actions/upload-artifact@v5
+        with:
+          name: exported-backup
+          path: ${{ runner.temp }}/exported-backup
+          retention-days: 1
       - uses: actions/download-artifact@v5
         with:
           name: update-check
@@ -126,9 +134,28 @@ jobs:
       - run: cd release && sha256sum -c SHA256SUMS
       - run: bash scripts/smoke-install.sh release/*.tar.gz
 
+  # Restore the Ubuntu backup on a different system that has never run AmuOS.
+  restore-debian:
+    needs: install-ubuntu
+    runs-on: ubuntu-24.04
+    container: debian:13
+    steps:
+      - run: apt-get update && apt-get install -y --no-install-recommends ca-certificates curl openssl
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v5
+        with:
+          name: linux-amd64
+          path: release
+      - uses: actions/download-artifact@v5
+        with:
+          name: exported-backup
+          path: exported-backup
+      - run: cd release && sha256sum -c SHA256SUMS
+      - run: bash scripts/smoke-restore.sh release/*.tar.gz exported-backup
+
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [go, web, install-ubuntu, install-debian]
+    needs: [go, web, install-ubuntu, install-debian, restore-debian]
     runs-on: ubuntu-latest
     permissions:
       contents: write

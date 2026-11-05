@@ -128,6 +128,9 @@ func run() error {
 	if err := db.RecoverLocalMaintenance(context.Background(), time.Now()); err != nil {
 		return err
 	}
+	if err := db.RecoverTasks(context.Background(), time.Now()); err != nil {
+		return err
+	}
 	if *bootstrap != "" {
 		// O_EXCL prevents overwriting an existing credential file.
 		file, err := os.OpenFile(*bootstrap, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)

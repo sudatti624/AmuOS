@@ -10,7 +10,8 @@ import (
 func (s *Store) RunMaintenance(ctx context.Context, now time.Time) error {
 	_, auditErr := s.RunAuditMaintenance(ctx, now)
 	keyErr := s.ExpireIdempotency(ctx, now)
-	return errors.Join(auditErr, keyErr)
+	taskErr := s.RunTaskMaintenance(ctx, now)
+	return errors.Join(auditErr, keyErr, taskErr)
 }
 
 // The due-time claim, deletion, audit and schedule update commit together.
