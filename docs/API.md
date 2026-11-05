@@ -56,6 +56,7 @@
 |---|---|---|
 | POST /hosts/{id}/tasks | Cookie、X-CSRF-Token、Idempotency-Key、`{"operation":"collect"}` | 対象ホストのhost.collect（Admin・Operator）。201、state: queued。同じ要求者・ホスト・キーの再要求は元のタスクとIdempotency-Replayed: true。1ホストの未完了タスクは10件まで（超過は409） |
 | GET /tasks | Cookie | host.readのホストのタスクだけ、新しい順に100件まで |
+| GET /hosts/{id}/tasks | Cookie | 対象ホストのhost.read。そのホストのタスクを新しい順に100件まで。範囲外・削除済みは404 |
 | GET /tasks/{id} | Cookie | 親ホストのhost.read。範囲外・不存在は404 |
 | POST /tasks/{id}/cancel | Cookie、X-CSRF-Token、`{}` | 親ホストのhost.collect。queuedのみcancelledにする。配送後は実行の有無を確認できないため409 |
 | POST /tasks/{id}/resolve | Cookie、X-CSRF-Token、`{"resolution":"failed","evidence":"…"}`（resolutionはsucceededかfailed、evidenceは1〜500バイト） | 親ホストのhost.manage（Admin）。unknownのみ。根拠を監査に記録し、再実行はしない |

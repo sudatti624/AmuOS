@@ -125,3 +125,12 @@ func (s *Server) retryTask(w http.ResponseWriter, r *http.Request) {
 	}
 	respond(w, 201, task)
 }
+
+func (s *Server) hostTasks(w http.ResponseWriter, r *http.Request) {
+	tasks, err := s.store.HostTasks(r.Context(), sessionToken(r), chi.URLParam(r, "id"), s.clock())
+	if err != nil {
+		s.failure(w, r, err)
+		return
+	}
+	respond(w, 200, map[string]any{"items": tasks})
+}

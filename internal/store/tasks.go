@@ -396,3 +396,34 @@ func (s *Store) RecoverTasks(ctx context.Context, now time.Time) error {
 		return holdOpenTasks(ctx, tx, now, "'dispatching','running'", "control_plane_restarted")
 	})
 }
+
+// HostTasks lists the newest tasks of one host. A host outside the caller's
+// read scope is reported as not found.
+func (s *Store) HostTasks(ctx context.Context, token, hostID string, now time.Time) ([]Task, error) {
+	tasks := []Task{}
+	err := s.transaction(ctx, func(tx *sql.Tx) error {
+		p, _, err := authenticate(tx, token, now)
+		if err != nil {
+			return err
+		}
+		if state, err := hostState(tx, p, hostID); err != nil {
+			return err
+		} else if state == "" {
+			return ErrNotFound
+		}
+		rows, err := tx.Query("SELECT "+taskColumns+" FROM tasks WHERE host_id=? ORDER BY created_at DESC, id LIMIT ?", hostID, taskListLimit)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			t, err := scanTask(rows)
+			if err != nil {
+				return err
+			}
+			tasks = append(tasks, t)
+		}
+		return rows.Err()
+	})
+	return tasks, err
+}

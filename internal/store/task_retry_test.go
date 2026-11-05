@@ -152,3 +152,32 @@ func TestRetryChainsAreLimitedAndScoped(t *testing.T) {
 		t.Fatalf("retry on a revoked host: %v", err)
 	}
 }
+
+func TestHostTasksListsOnlyThatHost(t *testing.T) {
+	s, owner, host := taskFixture(t)
+	ctx := context.Background()
+	other, err := s.CreateHost(ctx, owner.Token, owner.CSRF, "other-host", testTime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mine, err := newTask(t, s, owner, host.ID, "host-list-mine-0001", testTime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := newTask(t, s, owner, other.ID, "host-list-other-001", testTime); err != nil {
+		t.Fatal(err)
+	}
+	listed, err := s.HostTasks(ctx, owner.Token, host.ID, testTime)
+	if err != nil || len(listed) != 1 || listed[0].ID != mine.ID {
+		t.Fatalf("host tasks: %+v %v", listed, err)
+	}
+	_, viewer := inviteUser(t, s, owner, "viewer", rbac.Grant{Role: rbac.Viewer, HostID: host.ID})
+	if listed, err := s.HostTasks(ctx, viewer.Token, host.ID, testTime); err != nil || len(listed) != 1 {
+		t.Fatalf("viewer in scope: %+v %v", listed, err)
+	}
+	for _, id := range []string{other.ID, "missing-host"} {
+		if _, err := s.HostTasks(ctx, viewer.Token, id, testTime); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("host outside scope: %v", err)
+		}
+	}
+}

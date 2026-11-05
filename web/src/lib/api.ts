@@ -122,6 +122,30 @@ export interface History {
   series: Record<MetricName, Series>;
 }
 
+export type TaskState =
+  | "queued"
+  | "dispatching"
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "timed_out"
+  | "cancelled"
+  | "unknown";
+
+export interface Task {
+  id: string;
+  operation: string;
+  host_id: string;
+  state: TaskState;
+  attempt: number;
+  reason: string;
+  created_at: number;
+  updated_at: number;
+  finished_at: number | null;
+  retry_of: string | null;
+  retried_by: string | null;
+}
+
 export interface Enrollment {
   id: string;
   host_id: string;

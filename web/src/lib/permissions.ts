@@ -22,6 +22,15 @@ export function canReadHosts(grants: Grant[]) {
   return grants.length > 0;
 }
 
+export function canCollect(grants: Grant[], hostId: string) {
+  return (
+    isOwner(grants) ||
+    grants.some(
+      (g) => (g.role === "Admin" || g.role === "Operator") && (g.all_hosts || g.host_id === hostId),
+    )
+  );
+}
+
 export function canManageHost(grants: Grant[], hostId: string) {
   return (
     isOwner(grants) ||

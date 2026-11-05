@@ -59,6 +59,15 @@ test("a real Agent enrolls with a one-time code, connects over mTLS and is revok
   }
   await page.getByRole("tab", { name: "30日" }).click();
   await expect(page.getByRole("tab", { name: "30日" })).toHaveAttribute("aria-selected", "true");
+
+  // The Agent polls for tasks and reports the result. Without a collector
+  // (non-Linux builds) the collect task fails instead of succeeding.
+  await page.getByRole("button", { name: "今すぐ収集" }).click();
+  const outcome = process.platform === "linux" ? "成功" : "失敗";
+  await expect(page.getByText(outcome, { exact: true })).toBeVisible({ timeout: 40_000 });
+  await page.getByRole("button", { name: "再実行" }).click();
+  await expect(page.getByText(/再実行（元: /)).toBeVisible();
+  await expect(page.getByText(/再実行済み（/)).toBeVisible();
   await page.getByRole("link", { name: "ホスト一覧" }).click();
 
   await row.getByRole("button", { name: "失効" }).click();

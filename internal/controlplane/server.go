@@ -79,6 +79,7 @@ func newServer(db *store.Store, origin string) (*Server, http.Handler, error) {
 	r.Delete("/api/v1/hosts/{id}", s.changeHost(db.DeleteHost))
 	r.Post("/api/v1/hosts/{id}/revoke", s.changeHost(db.RevokeHost))
 	r.Post("/api/v1/hosts/{id}/enrollment", s.createEnrollment)
+	r.Get("/api/v1/hosts/{id}/tasks", s.hostTasks)
 	r.Post("/api/v1/hosts/{id}/tasks", s.createTask)
 	r.Get("/api/v1/tasks", s.tasks)
 	r.Post("/api/v1/agent/enroll", s.enrollAgent)

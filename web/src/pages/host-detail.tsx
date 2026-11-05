@@ -1,4 +1,5 @@
 import { SystemdState } from "./systemd-state";
+import { HostTasks } from "./host-tasks";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router";
 import { ArrowLeftIcon } from "lucide-react";
@@ -274,6 +275,13 @@ export function HostDetailPage() {
   const { reload: reloadDetail } = detail;
   const { reload: reloadHistory } = history;
   const interval = (detail.data?.sample_interval ?? 15) * 1000;
+  // A finished collect task changed the host; refresh everything it shows.
+  const [collected, setCollected] = useState(0);
+  const refresh = useCallback(() => {
+    void reloadDetail();
+    void reloadHistory();
+    setCollected((n) => n + 1);
+  }, [reloadDetail, reloadHistory]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -312,7 +320,8 @@ export function HostDetailPage() {
             </p>
           )}
           {host.latest && <CurrentValues latest={host.latest} info={host.info} />}
-          <SystemdState hostId={host.id} />
+          <HostTasks host={host} onCollected={refresh} />
+          <SystemdState key={collected} hostId={host.id} />
           {host.info && (
             <div className="grid gap-3 lg:grid-cols-2">
               <InfoCard detail={host} info={host.info} />
