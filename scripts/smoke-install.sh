@@ -82,13 +82,12 @@ agent_host=$(api -X POST "$origin/api/v1/hosts" -H "X-CSRF-Token: $csrf" -H "Ide
 (umask 077; api -X POST "$origin/api/v1/hosts/$agent_host/enrollment" -H "X-CSRF-Token: $csrf" -d '{}' |
   sed -n 's/.*"code":"\([^"]*\)".*/\1/p' > agent-code)
 [ -s agent-code ] || { echo "::error::FAIL: enrollment code"; exit 1; }
-agent() {
-  ./amuos-agent --state-dir agent-state --server https://127.0.0.1:8443 \
-    --agent-server https://127.0.0.1:9443 --ca-file data/server.pem "$@"
-}
-agent --enroll-code-file agent-code
+agent_args=(--state-dir agent-state --server https://127.0.0.1:8443
+  --agent-server https://127.0.0.1:9443 --ca-file data/server.pem)
+./amuos-agent "${agent_args[@]}" --enroll-code-file agent-code
 rm agent-code
-agent &
+# Start the binary directly so $! is the Agent itself and kill releases its lock.
+./amuos-agent "${agent_args[@]}" &
 agent_pid=$!
 connected=""
 for _ in $(seq 50); do
@@ -141,9 +140,8 @@ api "$origin/api/v1/audit" | grep -q 'restore.complete' || { echo "::error::FAIL
 # A restore issues a new Agent CA, so the restored Agent credential fails the
 # TLS handshake. The Agent keeps retrying until it is stopped.
 status=0
-timeout 5 ./amuos-agent --state-dir agent-state --server https://127.0.0.1:8443 \
-  --agent-server https://127.0.0.1:9443 --ca-file data/server.pem 2> agent.log || status=$?
-expect "$status" 124 "agent after restore keeps retrying"
+timeout 5 ./amuos-agent "${agent_args[@]}" 2> agent.log || status=$?
+expect "$status" 124 "agent after restore keeps retrying: $(tail -n 1 agent.log)"
 grep -q 'heartbeat failed' agent.log &&
   grep -q 'TLS handshake error.*unknown authority' server.log || {
   echo "::error::FAIL: agent credential survived the restore: $(tail -n 2 agent.log | tr '\n' ' ')"; exit 1
