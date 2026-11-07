@@ -114,7 +114,7 @@ export function OverviewPage() {
             <CardTitle>このバージョンについて</CardTitle>
           </CardHeader>
           <p className="text-sm text-muted-foreground">
-            AmuOSは開発途中です。いまできるのは、ユーザー・グループ・権限の管理、ホストの登録枠の確保、監査ログの確認です。ホストの監視やタスクは、今後のバージョンで少しずつ追加していく予定です。
+            AmuOSは開発途中です。ユーザー・グループ・権限の管理、Agentによるホスト情報・監視値の収集と履歴、収集タスク、監査ログの確認ができます。アプリのデプロイ・ファイル管理・コンテナ・VM管理は今後の実装予定です。
           </p>
         </Card>
       </div>

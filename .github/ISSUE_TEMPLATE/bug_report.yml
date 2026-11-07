@@ -1,0 +1,54 @@
+name: Bug report
+description: 不具合にお気づきの場合は、こちらから教えていただけますと幸いです。
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ご報告ありがとうございます。わかる範囲の情報で構いませんので、教えていただけますと助かります。
+        安全のため、パスワード・登録コード・トークン・Cookie・秘密鍵・個人情報は記載しないようお願いいたします。
+        脆弱性については公開Issueへの記載を避け、リポジトリのSecurityタブから非公開でお知らせいただくようお願いします。
+  - type: input
+    id: version
+    attributes:
+      label: AmuOSのバージョン
+      description: バージョン表示、またはソースのコミットIDを教えていただけると助かります。
+      placeholder: v0.4.0
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: 問題が起きた場所
+      options:
+        - Control Plane・Web画面
+        - Agent
+        - 導入・更新・バックアップ・復元
+        - 複数箇所・不明
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 実行環境
+      description: Control Plane/AgentのOSと版、CPUアーキテクチャ、導入方法（配布物/ソース）、ブラウザー、関係するランタイム/エンジンの版がわかると調査の助けになります。VM/コンテナの利用や関連する権限・ディスク・ネットワーク設定も、わかる範囲で教えていただけますと幸いです。
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 再現手順
+      description: 行った操作や再現頻度、直前の更新・設定変更がわかれば、添えていただけると助かります。
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期待した動作と実際の動作
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 関連するエラー・ログ
+      description: 任意です。関連箇所を添えていただけると助かります。秘密値や個人情報は取り除いていただくようお願いします。
+      render: text

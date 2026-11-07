@@ -6,165 +6,213 @@
 
 **散らばった機能を、一枚に編む。**
 
-既存のLinuxに入れて使う、小さなセルフホスト型のサーバー管理基盤
+Linux・Windowsのホストを、一つのWeb画面から管理するセルフホスト型のプロジェクト
 
-[![Test foundation](https://github.com/sudatti624/AmuOS/actions/workflows/test.yml/badge.svg)](https://github.com/sudatti624/AmuOS/actions/workflows/test.yml)
+**日本語** · [English](README.en.md)
+
+[![CI](https://github.com/sudatti624/AmuOS/actions/workflows/test.yml/badge.svg)](https://github.com/sudatti624/AmuOS/actions/workflows/test.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 ![Status: early development](https://img.shields.io/badge/status-early_development-orange)
 
+[Releases](https://github.com/sudatti624/AmuOS/releases) · [Linuxへの導入](docs/INSTALL.md) · [Windowsへの導入](docs/INSTALL-WINDOWS.md) · [ロードマップ](#ロードマップ)
+
 </div>
 
-AmuOSは、複数のLinuxホストの情報や監視データを、一つのURL・一つのログイン・一つの管理画面でまとめて扱えるようにすることを目指すオープンソースのプロジェクトです。
+AmuOSは、ホスト・アプリケーション・ファイル・監視・権限を、一つのURL・一つのログインで扱える管理環境を目指しています。既存のOSに導入でき、OSの再インストールは必要ありません。
 
-まだ開発を始めたばかりで、いまあるのは認証・権限管理・監査の土台と、それを操作する最初のWeb画面です。至らない点も多いと思いますが、少しずつ育てていければと思っています。
-
-*A small, self-hosted server management platform for existing Linux hosts. Early development — currently authentication, RBAC, audit logging and a first web UI, written in Go and React.*
-
-<p align="center">
-  <img src="docs/images/overview.png" alt="AmuOSの概要画面" width="800">
-</p>
+現在の公開版は **v0.4.0（プレリリース）** です。認証・権限管理、Agentによるホスト監視、監査、バックアップ・復元、Linux/Windowsでの常駐と更新を提供しています。**アプリのデプロイ・ファイル管理・Docker/Compose・VM管理は今後の実装予定です。**
 
 > [!WARNING]
-> 開発途中のソフトウェアです。APIやデータ形式は予告なく変わることがあります。本番環境やインターネットに公開された環境での利用はお控えください。
+> 開発途中のソフトウェアです。APIやデータ形式は予告なく変わることがあります。本番環境やインターネットに公開された環境での利用はお控えください。対応範囲と制約は、各リリースノートと導入手順をご確認ください。
 
 ## 目次
 
 - [いまできること](#いまできること)
+- [対応環境](#対応環境)
 - [はじめかた](#はじめかた)
-- [開発](#開発)
 - [構成](#構成)
 - [ロードマップ](#ロードマップ)
+- [開発](#開発)
 - [ドキュメント](#ドキュメント)
 - [AIの利用について](#aiの利用について)
-- [貢献](#貢献)
+- [Issues / PRs](#issues--prs)
 - [ライセンス](#ライセンス)
+
+<p align="center">
+  <img src="docs/images/host-detail.png" alt="サンプルデータで表示したAmuOSのホスト詳細。監視値・収集タスク・サービス状態" width="1000">
+  <br>
+  <sub>現在のUIをサンプルデータで表示したホスト詳細です。実機の測定結果ではありません。</sub>
+</p>
+
+<details>
+<summary>監視グラフ・ホスト一覧・概要の画面例を見る</summary>
+
+以下も現在のUIにサンプルデータを表示して撮影しています。表示は版や構成によって異なります。
+
+**監視履歴** — CPU・メモリ・ディスク・ネットワークの推移を確認できます。
+
+<img src="docs/images/monitoring.png" alt="サンプルデータによるCPU・メモリ・ディスク・ネットワークの履歴グラフ" width="1000">
+
+**ホスト一覧** — 複数のホストとAgentの接続状態を確認できます。
+
+<img src="docs/images/hosts.png" alt="Linux・Windowsのサンプルホストと接続状態を表示した一覧" width="1000">
+
+**概要** — 自分の権限、ホスト数、最近のアクティビティをまとめて確認できます。
+
+<img src="docs/images/overview.png" alt="サンプルデータによるAmuOSの概要画面" width="1000">
+
+</details>
 
 ## いまできること
 
-- **アカウントと権限**
-  - 初回設定（ローカルで発行する10分・1回限りのトークン）でオーナーを作成
-  - 期限付きの招待、パスワード変更、ユーザーの無効化と再有効化
-  - Owner / Admin / Operator / Viewer の固定ロールを、全ホストまたはホスト単位で割り当て（ユーザーへ直接、またはグループ経由）
-  - 権限の変更は、ログイン中のセッションにも次の操作から反映
-  - オーナーの追加・解除・移譲は、パスワードの再確認つき。最後のオーナーは外せません
-- **監査ログ**：重要な操作と拒否された要求を、変更前後の要約とリクエストIDつきで記録。保持期間を設定でき、期限切れのログは自動で削除
-- **ホスト**：ホストの登録枠（ID）の確保と一覧。通信が切れて再送しても重複して作られません
-- **Agent**（v0.3から）：一回限りのコードでの登録、mTLSでの接続と接続状態の表示、資格情報の自動更新、ホストの失効・削除、ホスト情報と監視値（CPU・メモリ・ディスク・ネットワークなど）の取得、履歴グラフ、監視の保持期間・収集間隔の設定、画面からの「今すぐ収集」と結果の確認・再実行、systemdサービス状態の表示
-- **Web画面**：日本語表示、ダーク/ライトテーマ、スマートフォンの幅にも対応
-- **運用**：停止中の暗号化バックアップと同じ版への復元、systemdでの常駐、再インストールなしの更新と、更新前のバックアップを使った切り戻し
-- **Windows対応（v0.4から）**：Control PlaneとAgentのWindowsサービス常駐、専用アカウントとNTFSアクセス制御、Windowsホストの監視、ZIP配布の作成、導入・更新・切り戻し。[Windows導入手順](docs/INSTALL-WINDOWS.md)をご覧ください。
-- **安全のための基本**：HTTPS必須、Argon2idによるパスワード保護、Origin・CSRFの検証、ログイン試行の回数制限、厳格なContent Security Policy
+| 機能 | 現在の範囲 |
+|---|---|
+| アカウントと権限 | 初回Owner設定、招待、ユーザー・グループ管理、Owner / Admin / Operator / Viewerの固定ロールを全体・ホスト単位で割当。Ownerの変更には再認証が必要 |
+| ホストとAgent | 一回限りのコードで登録、mTLS接続、資格情報の自動更新、接続状態の表示、失効・削除 |
+| 監視と履歴 | CPU・メモリ・ディスク・ネットワークなどの監視、ホスト情報、履歴グラフ、収集間隔・保持期間の設定。Linuxではsystemdの状態も表示 |
+| 収集タスク | 「今すぐ収集」、状態・結果の確認、配送前の取消、回数制限付きの再実行、結果不明の作業の手動確定 |
+| 監査 | 重要な操作と拒否された要求、変更前後の要約、リクエストID、保持期間の設定と期限切れログの削除 |
+| 運用 | 停止中の暗号化バックアップと同じ版への復元、サービス常駐、更新・切り戻し。Control Planeの復元後はAgentを再登録 |
 
-**まだできないこと**：実機での長時間運転と独立した環境での復元の確認。Docker・アプリのデプロイ・ファイル管理・VM管理は、基盤が安定してから取り組む予定です。
+Web画面は日本語表示で、ダーク/ライトテーマとスマートフォンの幅に対応しています。HTTPS、Backendでの認可、Argon2id、Origin・CSRF検証、ログイン試行制限を使用しています。
+
+## 対応環境
+
+| 環境 | 配布物・主な違い | 導入手順 |
+|---|---|---|
+| Linux amd64 | Ubuntu Server 24.04 LTS / Debian 13向けtar.gz。Control Plane・Agentはsystemdで常駐 | [Linuxへの導入](docs/INSTALL.md) |
+| Windows amd64 | Control Plane・AgentのZIP。Windowsサービスと専用アカウント・NTFSアクセス制御を利用。WSLは不要 | [Windowsへの導入](docs/INSTALL-WINDOWS.md) |
+
+WindowsではLoad・Swap・起動時刻・systemd状態、64論理CPUを超えるホストのCPU使用率は取得できません。ディスクI/OはWindowsの監視カウンターが利用できる場合に取得します。取得できない数値は0で代用しません。詳しい対応範囲・検証環境は [v0.4.0リリースノート](docs/releases/v0.4.0.md)をご覧ください。
 
 ## はじめかた
 
-### リリース版を使う（Linux amd64）
+1. [Releases](https://github.com/sudatti624/AmuOS/releases)から、利用するOSの配布物と`SHA256SUMS`を取得し、ハッシュを照合します。
+2. 上のOS別の導入手順に従って、HTTPS証明書・秘密鍵とControl Planeを用意し、初回Ownerを作成します。
+3. Web画面で管理対象ホストを作り、登録コードでAgentを登録します。ホスト詳細から情報・監視値・履歴を確認できます。
 
-[Releases](https://github.com/sudatti624/AmuOS/releases) から `amuos_<版>_linux_amd64.tar.gz` と `SHA256SUMS` をダウンロードし、[導入手順](docs/INSTALL.md) に沿って進めてください。展開して、証明書を置き、初回設定トークンを発行して起動するだけで試せます。
+| OS | 配布ファイル名 |
+|---|---|
+| Linux | `amuos_<版>_linux_amd64.tar.gz` |
+| Windows | `amuos_<版>_windows_amd64.zip` |
 
-### ソースからビルドする
+別ホストにAgentを置く場合は、証明書の接続先名、待受アドレス、ネットワーク到達性も設定します。更新前のバックアップと、切り戻しに使う旧本体・更新前のデータの保管もお願いします。[バックアップ・復元](docs/BACKUP.md)に対象と制約をまとめています。
 
-必要なものは Go 1.27系、Node.js 24系、pnpm 12系です。
+## 構成
+
+ブラウザーはControl PlaneへHTTPSで接続します。各ホストのAgentはControl Planeへ接続し、登録後の通信にはmTLS専用の待受を使います。Web画面はControl Planeのバイナリに組み込まれ、本体を動かすためにNode.jsを常駐させる必要はありません。
+
+| 部分 | 主な役割・技術 |
+|---|---|
+| Control Plane | 認証・認可・API・状態保存・監査。Go、chi、SQLite、Argon2id |
+| Agent | ホスト情報・監視値の収集、タスクの受領と結果記録。Go、mTLS |
+| Web UI | 共通の管理画面。React、TypeScript、Vite+、Tailwind CSS、Radix UI |
+| 検証 | Goの単体・統合試験、Webテスト、Playwright E2E、配布物の導入・更新・復元試験 |
+
+## ロードマップ
+
+v1.0では、ファイル配置から実行環境設定・デプロイ・起動・ログ/監視・更新/切り戻しまでを、一つの認証・権限・監査・タスクの仕組みで扱える状態を目指しています。これらの機能を統合して検証した段階を、v1.0の到達点と考えています。
+
+| 版 | 到達点 | 状態 |
+|---|---|---|
+| v0.1〜v0.4 | 認証・権限、監査、バックアップ/復元、Agent監視、Linux/Windows基盤 | 公開済み |
+| v0.5 | CIを中心とする基盤の認可・復元・負荷/障害の総合検証 | 計画 |
+| v0.6 | 許可ディレクトリでのファイル閲覧・転送・編集・整理 | 計画 |
+| v0.7 | アプリの実行環境・デプロイ・起動制御・ログ/監視・更新/切り戻し | 計画 |
+| v0.8 | Docker/Composeによるコンテナのデプロイ・運用 | 計画 |
+| v0.9 | 対応する一つの仮想化エンジンによる基本VM管理・バックアップ/復元 | 計画 |
+| v1.0 | 主要機能を統合した運用・権限・障害復旧の出荷検証 | 計画 |
+
+v0.5以降の実装・総合検証は未着手です。各版は機能到達点の目安で、公開時期の約束ではありません。デプロイ・コンテナ・VM管理はまずLinuxホストを対象とし、Windows上のControl Planeからも管理できる構成を目指します。
+
+出荷判定は主要操作・認可・障害復旧のCIを中心に行い、24時間運転や別途の実機試験を一律の必須条件にはしません。環境固有の問題はIssueで収集し、修正を可能な限り回帰テストへ追加します。詳しくは [開発計画](docs/PLAN.md)と[設計仕様書](docs/SPECIFICATION.md)をご覧ください。
+
+## 開発
+
+Goの版は[.go-version](.go-version)、WebのNode.js・pnpmの条件は[package.json](web/package.json)を基準にします。現在はGo 1.27.3、Node.js 24系、pnpm 12系を使用しています。
+
+<details>
+<summary>ソースからビルドする</summary>
+
+Web画面を先にビルドしてから、Control PlaneとAgentをビルドします。
 
 ```sh
 git clone https://github.com/sudatti624/AmuOS.git
 cd AmuOS
-
-# 1. Web画面をビルド（Goのバイナリに組み込まれるので、先にビルドします）
-cd web && pnpm install && pnpm exec vp build && cd ..
-
-# 2. Control Planeをビルド
-go build -o dist/controlplane ./cmd/controlplane
-
-# 3. 初回設定トークンを発行（data/setup-token に保存され、10分間有効）
-mkdir -m 700 data
-./dist/controlplane --db data/amuos.db --bootstrap-file data/setup-token
-
-# 4. HTTPSで起動（証明書と秘密鍵は事前に用意します）
-./dist/controlplane --db data/amuos.db \
-  --addr 127.0.0.1:8443 --origin https://localhost:8443 \
-  --tls-cert data/server.pem --tls-key data/server-key.pem
+cd web
+pnpm install --frozen-lockfile
+pnpm exec vp build
+cd ..
 ```
 
-ブラウザで `https://localhost:8443/setup` を開き、手順3のトークンと、オーナーのユーザー名・パスワードを入力します。作成できたら、トークンのファイルを削除してログインしてください。ほかのユーザーは「ユーザーとグループ」の「招待」から招待できます。
-
-- 証明書は、接続先の名前に合い、利用する端末が信頼できるものを使ってください。TLSの証明書と鍵がないと起動しません。
-- `--origin` は、ブラウザで開くURLのOrigin（末尾の `/` なし）と完全に一致させます。
-- Windowsでの手順や詳しい運用は [運用手順](docs/OPERATIONS.md) にあります。APIを直接使う場合は [API契約](docs/API.md) を参照してください。
-
-## 開発
+Linux：
 
 ```sh
-# Web画面（web/ で実行）
-pnpm exec vp check     # 整形・lint・型チェック
-pnpm exec vp test      # 単体テスト
-pnpm exec vp build
-
-# Control Plane（リポジトリ直下で実行）
-go test ./...
-go vet ./...
-
-# ブラウザでのE2Eテスト（ビルド済みのバイナリを使います）
 go build -o dist/controlplane ./cmd/controlplane
-go build -o dist/devcert ./scripts/devcert    # テスト専用の自己署名証明書ツール
-cd web && pnpm exec playwright install chromium && pnpm exec playwright test
+go build -o dist/agent ./cmd/agent
 ```
 
-E2Eテストは、テストごとに新しいデータベースと証明書でControl Planeを起動し、初回設定から権限の変更、APIを直接呼んだときの拒否までを確認します。開発の進め方は [CONTRIBUTING.md](CONTRIBUTING.md) にまとめています。
+Windows（PowerShell）：
 
-## 構成
+```powershell
+go build -o dist/controlplane.exe ./cmd/controlplane
+go build -o dist/agent.exe ./cmd/agent
+```
 
-Control Planeが認証・認可・データの保存を担当し、将来は各Linuxホストに置くAgentがControl Planeへ外向きに接続する構成です。Web画面はControl Planeのバイナリに組み込まれ、同じURLで配信されます。
+ビルドしただけではサービス登録や初回設定は行われません。開発用の起動方法は[運用手順](docs/OPERATIONS.md)、サービスとしての導入方法はOS別の手順にまとめていますので、必要に応じてご参照いただければと思います。
 
-| 部分 | 技術 |
-|---|---|
-| Control Plane | Go 1.27、chi、SQLite（modernc.org/sqlite）、Argon2id |
-| Web UI | React、TypeScript、Vite+、Tailwind CSS v4、Radixベースの部品（shadcn/uiの方式） |
-| テスト | Go testing、Vitest、Playwright |
-| Agent | Go、mTLS（未実装） |
+</details>
 
-対象環境はLinux amd64（Ubuntu Server 24.04 LTS・Debian 13）です。自動テスト（GitHub Actions）では、Ubuntu 24.04 上でのテストとE2Eに加えて、配布用ファイルを Ubuntu 24.04 と Debian 13 に手順どおり導入して起動できることを確認しています。Ubuntu 24.04 ではsystemdのサービスとして導入し、更新と切り戻しができること、そこで取ったバックアップを Debian 13 の新しい環境へ復元できることも確認しています。実機での長時間の運用の検証はこれからです。
+<details>
+<summary>検査・テストを実行する</summary>
 
-## ロードマップ
+リポジトリ直下：
 
-| 版 | 目安 |
-|---|---|
-| v0.1 | 画面からユーザーと権限を管理でき、Ubuntu Server / Debian に手順どおり導入して試せる |
-| v0.2 | systemdでの常駐、バックアップと復元、再インストールなしの更新と切り戻し |
-| v0.3 | Agentを登録し、ホストの情報・監視値・履歴を画面で確認できる |
-| v0.4 | Windowsへの対応（Control PlaneとAgent）。WSLや仮想マシンを使えない環境でも試せるようにしたいと考えています |
-| v1.0 | 初期リリースの条件（独立環境での復元、認可の総合検証、24時間の連続運転など）をすべて満たす |
+```sh
+go fmt ./...
+go vet ./...
+go test ./...
+```
 
-v1.0のあとには、MCP（Model Context Protocol）への対応も検討しています。AIアシスタントから、ご自身の権限の範囲でホストの状態や監査ログを確認できるようにしたいと考えています。
+`web/`：
 
-詳しくは [開発計画](docs/PLAN.md) と [設計仕様書](docs/SPECIFICATION.md) をご覧ください。
+```sh
+pnpm exec vp check
+pnpm exec vp test
+pnpm exec vp build
+```
+
+E2EにはControl Plane・Agent・開発用証明書ツールの実バイナリとPlaywrightが必要です。手順と確認範囲は[検証計画](docs/TESTING.md)、CIの実行内容は[ワークフロー](.github/workflows/test.yml)をご覧ください。
+
+</details>
 
 ## ドキュメント
 
-| 資料 | 内容 |
+| 目的 | 資料 |
 |---|---|
-| [設計仕様書](docs/SPECIFICATION.md) | 製品の仕様、初期リリースの範囲、完了条件 |
-| [アーキテクチャ](docs/ARCHITECTURE.md) | 構成、データモデル、信頼境界 |
-| [設計判断](docs/DECISIONS.md) | 技術の選定と判断の理由（ADR） |
-| [API契約](docs/API.md)・[API認可表](docs/API_AUTHORIZATION.csv) | エンドポイント、入力、エラー、認可の条件 |
-| [セキュリティ設計](docs/SECURITY.md) | 脅威と対策 |
-| [運用手順](docs/OPERATIONS.md) | ビルド、起動、開発サーバー |
-| [テスト](docs/TESTING.md)・[進捗](docs/PROGRESS.md) | 検証計画と、検証の記録・未完了の事項 |
+| 導入・更新 | [Linux](docs/INSTALL.md) / [Windows](docs/INSTALL-WINDOWS.md) |
+| バックアップ・復元 | [手順と制約](docs/BACKUP.md) |
+| 仕様・今後の計画 | [設計仕様書](docs/SPECIFICATION.md) / [開発計画](docs/PLAN.md) |
+| 構成・設計判断 | [アーキテクチャ](docs/ARCHITECTURE.md) / [ADR](docs/DECISIONS.md) |
+| API・認可 | [API契約](docs/API.md) / [認可表](docs/API_AUTHORIZATION.csv) |
+| 起動・検証・進捗 | [運用手順](docs/OPERATIONS.md) / [検証計画](docs/TESTING.md) / [検証記録](docs/PROGRESS.md) |
+| 安全性・報告 | [セキュリティ設計](docs/SECURITY.md) / [脆弱性の報告](SECURITY.md) |
 
-## 名前について
-
-AmuOSの名前は「編む」から取りました。編み物は、一本一本の糸を編み込むことで一枚の布になります。サーバー、アプリ、監視、権限など、ばらばらになりがちな管理の機能を、少しずつ編み合わせていけたら、という思いを込めています。
+詳細資料とWeb画面は主に日本語です。[英語版README](README.en.md)にも同じ概要・導入先・ロードマップを掲載しています。
 
 ## AIの利用について
 
-AmuOSは、AIによるコーディング支援を活用しながら開発しています。AIが書いたコードや文書をそのまま正しいものとは扱わず、テストと検証を通してから取り込むよう心がけています。それでも誤りや不自然な点が残っているかもしれません。お気づきの点があれば、Issueでお知らせいただけると助かります。
+AmuOSは、AIを活用した開発を中心に進めているプロジェクトです。開発方針やリリースは管理者が判断し、動作の確認には自動テストやCIを用いています。
 
-## 貢献
+実装・検証の状況や既知の制約は、[開発計画](docs/PLAN.md)と[検証記録](docs/PROGRESS.md)に記載し、未実装・未確認の項目も明示するようにしています。
 
-Issueやプルリクエストをいただけると、とても嬉しいです。不具合の報告や小さな修正、ドキュメントの誤字の指摘も大歓迎です。手順は [CONTRIBUTING.md](CONTRIBUTING.md) にまとめています。改変した内容を公開する義務はありませんが、もし共有していただけたら、ありがたく参考にさせていただきます。
+まだ開発途中であり、テストで見つけられていない不具合や不自然な点が残っている可能性があります。お気づきの点があれば、Issueでお知らせいただけると助かります。
 
-脆弱性に気づかれた場合は、お手数ですが公開Issueではなく、[SECURITY.md](SECURITY.md) の方法で非公開にお知らせください。
+## Issues / PRs
+
+IssueやPRをいただけると、とても助かります。不具合にお気づきの場合は、[Issue](https://github.com/sudatti624/AmuOS/issues/new?template=bug_report.yml)で版・環境・再現手順などを、わかる範囲で教えていただけますと幸いです。ログを添える際は、秘密値を取り除いていただくようお願いします。小さなコードや文書の修正も歓迎しています。詳しい手順は[CONTRIBUTING.md](CONTRIBUTING.md)にまとめています。
+
+脆弱性にお気づきの場合は、お手数ですが公開Issueへの記載を避け、[SECURITY.md](SECURITY.md)の窓口から非公開でお知らせいただくようお願いします。改変した内容を公開する義務はありませんが、共有していただけたら、ありがたく参考にさせていただきます。
 
 ## ライセンス
 
@@ -177,7 +225,7 @@ AmuOSは [Apache License 2.0](LICENSE) で公開しています。ライセン�
 AmuOSのロゴ（`docs/images/logo.png`、`web/public/favicon.png`、`web/src/assets/logo.png`）は、Apache License 2.0の対象外です。
 
 - AmuOSを紹介したり、AmuOSへのリンクとして使ったりする場合は、ロゴを改変せずに使っていただいて構いません。
-- ロゴを改変して使うこと、AmuOSと関係のない製品やサービスに使うこと、AmuOSの開発者が公認・提携しているように見える使い方は、ご遠慮ください。
+- 恐れ入りますが、ロゴの改変、AmuOSと関係のない製品やサービスでの利用、開発者による公認・提携を示すような使い方は、ご遠慮いただけますと幸いです。
 - AmuOSを改変して配布する場合は、本家と見分けがつくよう、ロゴを差し替えていただけると助かります。
 
-AmuOSは、chi、modernc.org/sqlite、golang.org/x/crypto、React、Radix UI、Tailwind CSS、Vite+ など多くのオープンソースソフトウェアに支えられています。それぞれのライセンスに従って利用しており、素晴らしいソフトウェアを公開してくださっている皆さまに感謝します。
+AmuOSは、chi、modernc.org/sqlite、golang.org/x/crypto、React、Radix UI、Tailwind CSS、Vite+など、多くのオープンソースソフトウェアに支えられています。ソフトウェアを公開してくださっている皆さまに感謝します。

@@ -1,14 +1,14 @@
 # 基盤の設計契約
 
-仕様v0.4 §2・§10・§12・§14・§16を具体化する。2026-11-04時点の順序0の設計基準。実装済みAPIはAPI.mdとAPI_AUTHORIZATION.csv、後続の未提供機能は本書の契約で区別する。順序3の画面には着手しない。
+基盤の仕様§2・§10・§12・§14を具体化する。2026-11-04に定めた設計契約を維持し、現在の製品範囲と実装順序は仕様v0.5 §1.4・§16とPLAN.mdに従う。実装済みAPIはAPI.mdとAPI_AUTHORIZATION.csv、未提供機能は各段階のADR・契約で区別する。
 
 ## 対応環境・構成・版
 
-- 配布対象はLinux amd64、Ubuntu Server 24.04 LTS / Debian 13。Windows amd64は開発・テスト用。単一Control Planeを前提とし、複数レプリカ・共有ネットワークファイルシステム上のSQLiteは対象外。
+- 配布対象はLinux amd64（Ubuntu Server 24.04 LTS / Debian 13）とWindows amd64。Windows基盤はv0.4から提供し、対応範囲と手順はADR-024・INSTALL-WINDOWS.mdに従う。単一Control Planeを前提とし、複数レプリカ・共有ネットワークファイルシステム上のSQLiteは対象外。
 - Go 1.27系（検証1.27.3）、chi v5.5.0、modernc.org/sqlite v1.61.1、x/crypto v0.58.0。正確な推移依存はgo.mod/go.sumを基準とする。DBはWAL・外部キー有効・busy_timeout 5秒・単一接続。未適用移行全体を一つのトランザクションで適用する。
 - Frontendは仕様のReact / TypeScript / Vite+ / Tailwind v4 / shadcn/uiを維持する。依存導入とlockfile・ビルド・画面/E2Eは順序3。今回の設計完了をFrontend導入済みとは扱わない。
 - sqlcでの生成・goose実行基盤の統合は、既存の原子的移行・クエリ契約を維持して順序4の配布/移行整備で検証する。現時点の実行方式は組込みSQLとuser_versionで確定しており、未導入ツールを実行前提にしない。
-- Linux配布はtar.gz、実行ファイル `/usr/local/bin/amuos-controlplane`・`amuos-agent`、設定 `/etc/amuos`、状態 `/var/lib/amuos`、ロック `/var/lib/amuos/.amuos.lock`（DBの親ディレクトリ）。状態ディレクトリ0700、鍵/DB0600、専用実行ユーザー。systemdユニットと手動更新・切り戻しの手順はINSTALL.md（ADR-017）。実機での長時間運転と独立環境の実証は順序6。
+- Linux配布はtar.gz、実行ファイル `/usr/local/bin/amuos-controlplane`・`amuos-agent`、設定 `/etc/amuos`、状態 `/var/lib/amuos`、ロック `/var/lib/amuos/.amuos.lock`（DBの親ディレクトリ）。状態ディレクトリ0700、鍵/DB0600、専用実行ユーザー。systemdユニットと手動更新・切り戻しの手順はINSTALL.md（ADR-017）。順序6ではCI中心の負荷・障害・クリーン環境復元を検証し、長時間/実機試験は補助検証とする（ADR-026）。
 - シークレット保存はAES-256-GCM、32バイトのデータ鍵と値ごとの乱数nonceを使用する。鍵IDと形式版を保存し、鍵ファイルはDBと分離する。現在のパスワードはArgon2id、トークン類はSHA-256であり、復号可能な形で保存しない。
 
 ## 信頼境界・権限
@@ -97,7 +97,7 @@ APIはsession・CSRFで `POST /api/v1/hosts/{id}/tasks`（collectのみ、host.c
 
 ## バックアップ形式・復元（順序4、一部実装）
 
-age v1形式・X25519 recipientを採用し、filippo.io/age v1.3.2（BSD-3-Clause）を導入した。現在のSQLite状態の停止中バックアップ・同版復元を提供する。コマンドと制限はBACKUP.md、実装判断はADR-016、検証証跡はPROGRESS.md。AgentのCA・保存鍵の再暗号化は、その対象を作る順序5で実装する。復元時の未完了タスクの保留は実装済み。別環境への復元はCIのDebianコンテナで確認し、実機の独立環境での総合復元は順序6で行う。
+age v1形式・X25519 recipientを採用し、filippo.io/age v1.3.2（BSD-3-Clause）を導入した。現在のSQLite状態の停止中バックアップ・同版復元を提供する。コマンドと制限はBACKUP.md、実装判断はADR-016、検証証跡はPROGRESS.md。AgentのCA・保存鍵の再暗号化は、その対象を作る順序5で実装する。復元時の未完了タスクの保留は実装済み。別環境への復元はCIのDebianコンテナで確認し、順序6ではCIのクリーン環境で異常系も含む総合復元を拡充する。別途の手動実機復元を一律必須にはしない。
 
 暗号化ストリームの内容はtarで、許可する通常ファイルだけを含める。manifest.json（最大64KiB）、database.sqlite、config.json、keys.jsonを必須とする。manifestには形式版1、製品版、スキーマ版、設定版、バックアップID、UTC一貫性境界、各ファイルのサイズ・SHA-256、鍵ID・対象一覧を含める。復旧用秘密鍵は含めず、別の障害領域に保管する。大きなDBを全量メモリへ読み込まない。
 
@@ -130,4 +130,4 @@ age v1形式・X25519 recipientを採用し、filippo.io/age v1.3.2（BSD-3-Clau
 
 後続配信は `GET /api/v1/events` のSSEとし、イベントIDで再開できても保存済み権限を引き継がない。未認証401、範囲外リソース404、認可拒否403、キー/状態競合409、サイズ/形式不正400/413、監査/容量障害503、互換性不一致409を採用する。Agent資格情報が無効ならTLSまたは401で拒否する。
 
-ファイル管理、Docker、デプロイ、VM、systemd変更のAPI・Adapterは初期リリースに登録しない。Control Plane/Agentの停止・更新は管理対象ワークロードへ停止命令を送らない。
+v0.4までの基盤版にはファイル管理、Docker、デプロイ、VM、systemd変更のAPI・Adapterを登録しない。v1.0へ向けた追加は仕様v0.5 §1.4・§16とPLAN.mdに従い、各段階で操作・認可・永続化・中断照合の契約を追記してから実装する。Control Plane/Agentの停止・更新は管理対象ワークロードへ停止命令を送らない。

@@ -4,7 +4,7 @@ AmuOSはサーバーを管理するためのソフトウェアなので、セキ
 
 ## 対象バージョン
 
-AmuOSはまだ開発途中で、正式なリリースはありません。いまは `main` ブランチの最新の状態のみを対象としています。正式リリース後は、サポートするバージョンをこの表に追記します。
+AmuOSはプレリリースを公開していますが、安定版はまだ提供していません。いまは `main` ブランチの最新の状態のみを対象としています。安定版のリリース後は、サポートするバージョンをこの表に追記します。
 
 | バージョン | サポート |
 |---|---|
@@ -15,9 +15,9 @@ AmuOSはまだ開発途中で、正式なリリースはありません。いま
 
 ## 脆弱性の報告
 
-**お手数ですが、脆弱性は公開Issue・プルリクエスト・Discussionには書かないでください。**
+**お手数ですが、脆弱性は公開Issue・PR・Discussionsへの記載を避け、非公開でのご連絡をお願いいたします。**
 
-GitHubの [Private vulnerability reporting](https://github.com/sudatti624/AmuOS/security/advisories/new)（リポジトリの「Security」タブ →「Report a vulnerability」）から、非公開でお知らせください。
+GitHubの [Private vulnerability reporting](https://github.com/sudatti624/AmuOS/security/advisories/new)（リポジトリの「Security」タブ →「Report a vulnerability」）からお知らせいただけますと幸いです。
 
 可能な範囲で、次の情報を添えていただけると助かります。
 
@@ -26,7 +26,7 @@ GitHubの [Private vulnerability reporting](https://github.com/sudatti624/AmuOS/
 - 想定される影響（認証回避、権限昇格、情報漏えいなど）
 - 必要な前提条件（認証の有無、ネットワーク上の位置など）
 
-実際の環境のパスワード・トークン・秘密鍵などは含めないでください。
+安全のため、実際の環境のパスワード・トークン・秘密鍵などは記載しないようお願いいたします。
 
 ## 対応について
 
