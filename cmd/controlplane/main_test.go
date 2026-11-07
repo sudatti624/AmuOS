@@ -21,7 +21,7 @@ func runWithArgs(t *testing.T, args ...string) error {
 	os.Args = append([]string{"controlplane"}, args...)
 	flag.CommandLine = flag.NewFlagSet("controlplane", flag.ContinueOnError)
 	defer func() { os.Args, flag.CommandLine = oldArgs, oldFlags }()
-	return run()
+	return run(context.Background())
 }
 
 func TestBootstrapCannotModifyLockedState(t *testing.T) {

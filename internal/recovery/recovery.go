@@ -18,6 +18,7 @@ import (
 
 	"filippo.io/age"
 	"github.com/sudatti624/AmuOS/internal/agentca"
+	"github.com/sudatti624/AmuOS/internal/privatefile"
 	"github.com/sudatti624/AmuOS/internal/statelock"
 	"github.com/sudatti624/AmuOS/internal/store"
 )
@@ -335,7 +336,7 @@ func GenerateRecoveryKey(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	f, err := privatefile.Create(path)
 	if err != nil {
 		return "", err
 	}

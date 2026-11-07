@@ -321,7 +321,7 @@ export function HostDetailPage() {
           )}
           {host.latest && <CurrentValues latest={host.latest} info={host.info} />}
           <HostTasks host={host} onCollected={refresh} />
-          <SystemdState key={collected} hostId={host.id} />
+          <SystemdState key={collected} hostId={host.id} windows={host.info?.os === "Windows"} />
           {host.info && (
             <div className="grid gap-3 lg:grid-cols-2">
               <InfoCard detail={host} info={host.info} />

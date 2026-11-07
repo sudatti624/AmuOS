@@ -1,4 +1,4 @@
-//go:build !linux
+//go:build !linux && !windows
 
 package agent
 
@@ -10,8 +10,7 @@ import (
 
 type unsupportedCollector struct{}
 
-// NewCollector returns a collector that reports ErrUnsupported; the Agent is
-// built for Linux, and other builds exist only for development.
+// NewCollector returns a collector that reports ErrUnsupported.
 func NewCollector() Collector { return unsupportedCollector{} }
 
 func (unsupportedCollector) HostInfo(time.Time) (metrics.HostInfo, error) {

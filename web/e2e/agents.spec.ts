@@ -20,6 +20,8 @@ test.afterAll(async () => {
 test("a real Agent enrolls with a one-time code, connects over mTLS and is revoked", async ({
   page,
 }) => {
+  // Enrollment plus two polled tasks can exceed the default 30-second budget.
+  test.setTimeout(90_000);
   const clean = watchConsole(page);
   await login(page, server.origin, "owner", ownerPassword);
   await page.goto(`${server.origin}/hosts`);
@@ -47,8 +49,8 @@ test("a real Agent enrolls with a one-time code, connects over mTLS and is revok
   await row.getByRole("link", { name: "agent-host" }).click();
   await expect(page.getByRole("heading", { name: "agent-host", level: 1 })).toBeVisible();
   await expect(page.getByRole("heading", { name: "履歴" })).toBeVisible();
-  if (process.platform === "linux") {
-    // The Agent reads /proc on Linux; values and charts follow its first sample.
+  if (process.platform === "linux" || process.platform === "win32") {
+    // Values and charts follow the native collector's first sample.
     await expect(page.getByRole("heading", { name: "ホスト情報" })).toBeVisible({
       timeout: 20_000,
     });
@@ -62,10 +64,9 @@ test("a real Agent enrolls with a one-time code, connects over mTLS and is revok
   await page.getByRole("tab", { name: "30日" }).click();
   await expect(page.getByRole("tab", { name: "30日" })).toHaveAttribute("aria-selected", "true");
 
-  // The Agent polls for tasks and reports the result. Without a collector
-  // (non-Linux builds) the collect task fails instead of succeeding.
+  // The Agent polls for tasks and reports the native collector's result.
   await page.getByRole("button", { name: "今すぐ収集" }).click();
-  const outcome = process.platform === "linux" ? "成功" : "失敗";
+  const outcome = ["linux", "win32"].includes(process.platform) ? "成功" : "失敗";
   await expect(page.getByText(outcome, { exact: true })).toBeVisible({ timeout: 40_000 });
   await page.getByRole("button", { name: "再実行" }).click();
   await expect(page.getByText(/再実行（元: /)).toBeVisible();

@@ -6,12 +6,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/sudatti624/AmuOS/internal/process"
 	"log/slog"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/sudatti624/AmuOS/internal/agent"
@@ -21,7 +20,7 @@ import (
 // version is set by release builds with -ldflags "-X main.version=...".
 var version = "dev"
 
-func run() error {
+func run(ctx context.Context) error {
 	showVersion := flag.Bool("version", false, "print the version and exit")
 	stateDir := flag.String("state-dir", "/var/lib/amuos-agent", "private directory for this agent's key and credential")
 	server := flag.String("server", "", "control plane HTTPS URL used for enrollment, e.g. https://cp.example:8443")
@@ -57,7 +56,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := context.WithCancel(ctx)
 	defer stop()
 	if *enrollFile != "" {
 		code, err := os.ReadFile(*enrollFile)
@@ -78,7 +77,7 @@ func run() error {
 }
 
 func main() {
-	if err := run(); err != nil {
+	if err := process.Run("AmuOSAgent", run); err != nil {
 		slog.Error("agent stopped", "error", err)
 		os.Exit(1)
 	}

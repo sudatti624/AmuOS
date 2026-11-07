@@ -50,3 +50,17 @@ WindowsのCLIスモークはビルド後に `scripts/check-startup.ps1` を実�
 タスク配送はmTLSでの正常collect、同一配送・結果再送、異なる結果・別ホスト・失効・期限切れの拒否、監査失敗のロールバック、Agent再生成と未完了ジャーナルのunknown回復を試験する。systemdのユニットハードニングはsmoke-systemd.shでネットワーク値・サービス状態・タスクの到達とAgent停止後のControl Plane生存を確認する。
 
 Agentジャーナルは、ACK済み終端の30日超だけの削除、30日境界、未ACK・unknown・未来時刻の保持、旧形式の初回確認からの保守的保持、削除の1時間間隔、時計巻戻りと再起動を試験する。10000件の満杯・壊れたJSONと想定外ファイル・結果報告404の各条件でもサンプルとホスト情報が届き、正常記録の報告も進むことを実mTLSの試験環境で確認する。満杯の能力通知と、清掃済みIDの期限切れ配送拒否・再実行しないこと、資格情報拒否の伝播も含む。
+
+## Windows基本収集の検証（2026-11-07）
+
+- Windows: go fmt ./...、go test ./...、go vet ./...成功。
+- Linux amd64: GOOS=linux GOARCH=amd64でgo vet ./...成功（実行試験ではない）。
+- collect_windows_test.goでWindows APIの実読取りとAPI契約、未対応項目の欠測、再起動相当の新規CollectorのCPU欠測を確認。
+- Windows Agent実バイナリを再ビルドし、webからplaywright test agents.spec.tsを実行、1件成功。監視グラフ表示・collect成功・再実行・失効を確認。
+- サービス常駐・NTFS ACL・64論理CPU超の実機・Linux回帰実行・CIは未確認。
+
+## v0.4 Windowsサービス・配布の検証（2026-11-07）
+
+Windows 11 amd64 (10.0.26300)、PowerShell 5.1でscripts/smoke-windows.ps1を管理者として実行。異なる版文字列で作った2組のControl Plane/Agentを使用し、空白を含むパスへのサービス導入、仮想アカウント、ACL、Agent登録、CPU/物理メモリ/ディスク容量/I/O/ネットワーク実測、collect、停止/再起動、両サービスの更新/切戻し、復元後の旧セッション拒否、削除が成功。一般ユーザーによるサービスTLS鍵の読取りが拒否されることも確認した。
+
+Go全test/vet、Linux amd64 vet/クロスビルド、Web check/test(14件)/build、WindowsブラウザーE2E全5件が成功。Windows用ZIPに両exe・導入スクリプト・手順・依存ライセンスを含める。CIにはWindowsのサービス試験とE2E、ZIP配布を追加したが、リモートでの実行はまだ行っていない。公開前に全ジョブを確認する。Windows Server 2025と24時間連続運転は未検証。

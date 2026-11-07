@@ -7,18 +7,18 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/sudatti624/AmuOS/internal/process"
 	"log/slog"
 	"net"
 	"net/http"
 	"os"
-	"os/signal"
 	"path/filepath"
-	"syscall"
 	"time"
 
 	"github.com/sudatti624/AmuOS/internal/agentca"
 	"github.com/sudatti624/AmuOS/internal/controlplane"
 	"github.com/sudatti624/AmuOS/internal/maintenance"
+	"github.com/sudatti624/AmuOS/internal/privatefile"
 	"github.com/sudatti624/AmuOS/internal/recovery"
 	"github.com/sudatti624/AmuOS/internal/statelock"
 	"github.com/sudatti624/AmuOS/internal/store"
@@ -27,7 +27,7 @@ import (
 // version is set by release builds with -ldflags "-X main.version=...".
 var version = "dev"
 
-func run() error {
+func run(ctx context.Context) error {
 	showVersion := flag.Bool("version", false, "print the version and exit")
 	dbPath := flag.String("db", "data/amuos.db", "SQLite database path")
 	addr := flag.String("addr", "127.0.0.1:8443", "HTTPS listen address")
@@ -87,7 +87,7 @@ func run() error {
 		}{version, check})
 	}
 	if *backup != "" || *restore != "" {
-		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		ctx, stop := context.WithCancel(ctx)
 		defer stop()
 		ctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
 		defer cancel()
@@ -139,7 +139,7 @@ func run() error {
 	}
 	if *bootstrap != "" {
 		// O_EXCL prevents overwriting an existing credential file.
-		file, err := os.OpenFile(*bootstrap, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+		file, err := privatefile.Create(*bootstrap)
 		if err != nil {
 			return err
 		}
@@ -169,7 +169,7 @@ func run() error {
 		return err
 	}
 	srv := &http.Server{Addr: *addr, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 * 1024, TLSConfig: &tls.Config{MinVersion: tls.VersionTLS13, Certificates: []tls.Certificate{certificate}}}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := context.WithCancel(ctx)
 	defer stop()
 	listener, err := net.Listen("tcp", *addr)
 	if err != nil {
@@ -204,7 +204,7 @@ func run() error {
 }
 
 func main() {
-	if err := run(); err != nil {
+	if err := process.Run("AmuOSControlPlane", run); err != nil {
 		slog.Error("control plane stopped", "error", err)
 		os.Exit(1)
 	}

@@ -175,3 +175,27 @@ systemdは固定引数の /usr/bin/systemctl list-units --type=service --all --n
 - 1つのタスクを再実行できるのは1回だけ（`retry_of` の一意索引）で、1つの系列での再実行は3回まで。上限に達した系列は、新しいタスクとして作り直す。
 - `retry_of` には外部キーを付けない。元のタスクが30日の保持期間で削除されたあとも参照のIDを残し、監査ログの記録と突き合わせられるようにする。元が削除された系列は、そこで数え直しになる。
 - スキーマv13で `tasks.retry_of` と一意索引を追加する。
+
+## ADR-024: Windows対応の段階導入（2026-11-07）
+
+仕様§1.3とv0.4計画に従い、Windows amd64対応を進める。最初の区切りは一般ユーザーで呼べるWindows APIを使ったAgentの基本収集とし、PowerShellや外部プロセスからの文字列解析は使わない。既存のmTLS・監視API・認可・DBスキーマをそのまま使う。
+
+- CPUはGetSystemTimesの差分を使う。kernel時間にはidleを含むため、busyはkernel+user-idleとする。初回・Agent再起動直後・カウンター巻戻りはnull。64論理CPUを超える環境はプロセッサーグループ全体を収集するまでnullとし、一部の値を全体として報告しない。
+- メモリはGlobalMemoryStatusExの物理メモリ総量と利用可能量から算出する。Windowsのcommit limitをLinuxのswap容量として扱わない。
+- 稼働時間はGetTickCount64、ホスト名はos.Hostname、論理CPU数はGetActiveProcessorCount、カーネル版はRtlGetVersionから取得する。
+- Load・Swap・ディスク・ネットワーク転送量、CPUモデル・起動時刻・ファイルシステムとインターフェースの詳細は今回未対応。未取得の数値はnull、一覧は空とする。systemdは既存どおりavailable=falseとする。
+- サービス常駐化、NTFS ACLによる鍵と状態の保護、Windows用導入・更新・切り戻し・削除、配布物、ディスクとネットワーク収集は後続の区切りで設計・検証する。この区切りだけではv0.4対応完了としない。
+
+参照: [GetSystemTimes](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getsystemtimes)、[GlobalMemoryStatusEx](https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-globalmemorystatusex)、[GetTickCount64](https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-gettickcount64)。
+
+### ADR-024の実装追補: Windowsサービスと配布（2026-11-07）
+
+最初の区切りに加え、固定ドライブ容量、システムドライブ使用率、CPUモデル、インターフェース、物理ネットワーク転送量、PhysicalDiskのディスクI/Oを実装した。ネットワークはMIB_IF_ROW2のHardwareInterfaceだけを対象に、インターフェース別の差分を合計する。PDHはローカライズに依存しない英語カウンター名を使用する。利用不能なカウンターを0で代用しない。Load・Swap・起動時刻は未対応のままとする。
+
+Control PlaneとAgentはSCMを自動検出してWindowsサービスとして動作し、停止・シャットダウン要求をcontextのキャンセルへ伝える。ワーカーの終了を待ってから停止完了とし、失敗は非ゼロのサービス終了コードとApplicationイベントログへ記録する。コンソール起動時は従来のシグナル停止を使う。
+
+導入にはパスワード不要の仮想アカウントNT SERVICE\AmuOSControlPlaneとNT SERVICE\AmuOSAgentを使う。専用NTFSルートはSYSTEM・Administrators・当該サービスだけに許可し、本体・TLS秘密鍵・設定はサービスに読取り権限、stateだけに変更権限を与える。AgentのPDH読取りにはPerformance Monitor Usersを使う。登録コードやTLS鍵の元ファイルも保護した場所に置く。回復鍵とbootstrapファイルは作成時から継承を無効にした保護DACLを指定する。ネットワーク共有・reparse point経由の導入を拒否し、ファイアウォール規則は追加しない。
+
+更新は停止・新本体のDB互換性確認・旧本体による暗号化バックアップ・本体差替え・起動の順とする。前の本体とバックアップをpreviousに残し、次の更新で上書きしない。Control Planeの切戻しでは旧版と同版バックアップを復元し、Agent CA・資格情報・セッションの失効を継続する。アンインストールはサービスとAgentのグループ所属を削除し、状態とバックアップを保持する。詳細はINSTALL-WINDOWS.md。
+
+Windows ZIPとチェックサム・依存ライセンスを作る手順を追加し、CIにWindows実サービスの導入・監視・更新・切戻し・削除とブラウザーE2Eを追加した。タグによる公開はWindowsとLinuxの両方の検証が通ったときだけ行う。

@@ -154,9 +154,54 @@ jobs:
       - run: cd release && sha256sum -c SHA256SUMS
       - run: bash scripts/smoke-restore.sh release/*.tar.gz exported-backup
 
+  windows-release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: .go-version
+          cache: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+        working-directory: web
+      - run: pnpm exec vp build
+        working-directory: web
+      - name: Build and package Windows
+        shell: pwsh
+        env:
+          VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('dev-{0}', github.sha) }}
+        run: |
+          ./scripts/package-windows.ps1 -Version $env:VERSION
+          ./scripts/package-windows.ps1 -Version "check-${{ github.sha }}"
+          go build -o dist/devcert.exe ./scripts/devcert
+          $name = 'amuos_' + $env:VERSION.TrimStart('v') + '_windows_amd64'
+          $update = 'amuos_check-${{ github.sha }}_windows_amd64'
+          ./scripts/smoke-windows.ps1 -Package "dist/windows-release/$name" -UpdatePackage "dist/windows-release/$update"
+          Copy-Item "dist/windows-release/$name/amuos-controlplane.exe" dist/controlplane.exe
+          Copy-Item "dist/windows-release/$name/amuos-agent.exe" dist/agent.exe
+          New-Item -ItemType Directory dist/windows-publish
+          Copy-Item "dist/windows-release/$name.zip" dist/windows-publish/
+          $hash = (Get-FileHash "dist/windows-release/$name.zip").Hash.ToLowerInvariant()
+          [IO.File]::WriteAllText("$PWD/dist/windows-publish/SHA256SUMS", "$hash  $name.zip`n", [Text.UTF8Encoding]::new($false))
+      - run: pnpm exec playwright install chromium
+        working-directory: web
+      - run: pnpm exec playwright test
+        working-directory: web
+        env:
+          CI: 'true'
+      - uses: actions/upload-artifact@v5
+        with:
+          name: windows-amd64
+          path: dist/windows-publish/*
+          retention-days: 14
+
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [go, web, install-ubuntu, install-debian, restore-debian]
+    needs: [go, web, windows-release, install-ubuntu, install-debian, restore-debian]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -165,12 +210,18 @@ jobs:
       - uses: actions/download-artifact@v5
         with:
           name: linux-amd64
-          path: release
+          path: release/linux
+      - uses: actions/download-artifact@v5
+        with:
+          name: windows-amd64
+          path: release/windows
+      - name: Combine checksums
+        run: cat release/linux/SHA256SUMS release/windows/SHA256SUMS > release/SHA256SUMS
       - name: Publish pre-release
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
-          gh release create "$GITHUB_REF_NAME" release/*.tar.gz release/SHA256SUMS
+          gh release create "$GITHUB_REF_NAME" release/linux/*.tar.gz release/windows/*.zip release/SHA256SUMS
           --title "AmuOS $GITHUB_REF_NAME"
           --notes-file "docs/releases/$GITHUB_REF_NAME.md"
           --prerelease --verify-tag

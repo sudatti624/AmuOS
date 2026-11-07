@@ -9,15 +9,16 @@ interface Snapshot {
   truncated: boolean;
   units: { unit: string; load: string; active: string; sub: string }[];
 }
-export function SystemdState({ hostId }: { hostId: string }) {
+export function SystemdState({ hostId, windows = false }: { hostId: string; windows?: boolean }) {
   const load = useCallback(() => api.get<Snapshot | null>(`/hosts/${hostId}/systemd`), [hostId]);
   const { data, error } = useLoad(load);
   return (
     <section aria-label="systemd" className="rounded-md border p-4">
       <h2 className="font-semibold">サービスの状態</h2>
+      {windows && <p>Windowsではsystemdの状態取得に対応していません。</p>}
       {error && <ErrorText>{errorMessage(error)}</ErrorText>}
-      {!data && <p>まだ状態を受信していません。</p>}
-      {data && (
+      {!windows && !data && <p>まだ状態を受信していません。</p>}
+      {!windows && data && (
         <>
           <p className="text-sm text-muted-foreground">
             取得: {new Date(data.collected_at * 1000).toLocaleString()} / 受信:{" "}
