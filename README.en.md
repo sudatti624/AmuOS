@@ -20,7 +20,7 @@ A self-hosted project for managing Linux and Windows hosts through one web inter
 
 AmuOS aims to bring hosts, applications, files, monitoring, and permissions together under one URL and one login. It installs on an existing operating system without requiring an OS reinstall.
 
-The current published version is **v0.4.0 (pre-release)**. It provides authentication and access control, Agent-based host monitoring, audit logs, backups and recovery, and service installation and updates on Linux and Windows. **Application deployment, file management, Docker/Compose, and VM management are planned features.**
+The current published version is **v0.5.0 (pre-release)**. It provides authentication and access control, Agent-based host monitoring, audit logs, backups and recovery, and service installation and updates on Linux and Windows. **Application deployment, file management, Docker/Compose, and VM management are planned features.**
 
 > [!WARNING]
 > AmuOS is in early development. APIs and data formats may change without notice. Please avoid using it in production or exposing it to the public internet. See each release's notes and installation guide for supported features and limitations.
@@ -83,7 +83,7 @@ The web interface is currently in Japanese, with dark/light themes and layouts f
 | Linux amd64 | A tar.gz package for Ubuntu Server 24.04 LTS / Debian 13. Control Plane and Agent run as systemd services | [Linux installation](docs/INSTALL.md) (Japanese) |
 | Windows amd64 | A ZIP package for Control Plane and Agent, using Windows services, dedicated accounts, and NTFS access controls. WSL is not required | [Windows installation](docs/INSTALL-WINDOWS.md) (Japanese) |
 
-On Windows, load averages, swap, boot time, systemd status, and CPU usage on hosts with more than 64 logical CPUs are unavailable. Disk I/O requires accessible Windows performance counters. Missing values are not reported as zero. See the [v0.4.0 release notes](docs/releases/v0.4.0.md) (Japanese) for details and tested environments.
+On Windows, load averages, swap, boot time, systemd status, and CPU usage on hosts with more than 64 logical CPUs are unavailable. Disk I/O requires accessible Windows performance counters. Missing values are not reported as zero. See the [v0.5.0 release notes](docs/releases/v0.5.0.md) (Japanese) for details and tested environments.
 
 ## Getting started
 
@@ -116,14 +116,14 @@ For v1.0, we aim to connect file placement, runtime configuration, deployment, s
 | Version | Milestone | Status |
 |---|---|---|
 | v0.1–v0.4 | Authentication and permissions, auditing, backup/recovery, Agent monitoring, and Linux/Windows foundations | Released |
-| v0.5 | CI-led foundation verification: authorization, recovery, load, and failure scenarios | Verification complete; unreleased |
+| v0.5 | CI-led foundation verification: authorization, recovery, load, and failure scenarios | v0.5.0 released |
 | v0.6 | Browsing, transferring, editing, and organizing files within permitted directories | Planned |
 | v0.7 | Application runtimes, deployment, lifecycle controls, logs/monitoring, updates, and rollback | Planned |
 | v0.8 | Container deployment and operation with Docker/Compose | Planned |
 | v0.9 | Basic VM management and backup/recovery through one supported virtualization engine | Planned |
 | v1.0 | Release verification of integrated operations, permissions, and failure recovery across the main features | Planned |
 
-Foundation verification for v0.5 is complete in CI; the release has not been published. Work on v0.6 and later has not started. Versions describe milestones, not release dates. Deployment, container, and VM features will initially target Linux hosts, with management also available through a Control Plane running on Windows.
+Foundation verification for v0.5 is complete in CI, and v0.5.0 has been published. Work on v0.6 and later has not started. Versions describe milestones, not release dates. Deployment, container, and VM features will initially target Linux hosts, with management also available through a Control Plane running on Windows.
 
 Release decisions will primarily use CI for core workflows, authorization, and failure recovery. A 24-hour run or a separate manual environment check is not a universal release requirement. Environment-specific issues will be collected through Issues and, where possible, covered by regression tests after fixes. See the [development plan](docs/PLAN.md) and [specification](docs/SPECIFICATION.md) (Japanese).
 
