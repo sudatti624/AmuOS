@@ -1,6 +1,6 @@
 module github.com/sudatti624/AmuOS
 
-go 1.27.0
+go 1.27.3
 
 require (
 	filippo.io/age v1.3.2
