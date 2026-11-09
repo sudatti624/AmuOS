@@ -25,7 +25,7 @@
 | §12 入口の制限 | 拒否の個別記録が送信元ごと・全体の上限で止まり、超過分の件数が次の時間枠で要約されること。応答は変わらないこと。IPv6を/64単位で数えること。送信元の表が満杯でも新しい送信元が共有枠でログインでき、共有枠にも上限があること |
 | §12 画面配信 | 画面のHTMLは応答ごとに異なるnonceとCSPを返し、プレースホルダーを残さない。`/assets/` の不正パス・隠しファイル・未登録拡張子は監査付き404。APIのCSPは変更しない |
 
-実行: `go test ./...`、`go vet ./...`、Linuxでは `go test -race ./...`。`web/` では `pnpm exec vp check`・`pnpm exec vp test`、ビルド済みの `dist/controlplane` と `dist/devcert` を使って `pnpm exec playwright test`。結果はPROGRESS.md。Go形式チェックは `gofmt -l cmd internal` が空であること。
+実行: `go test ./...`、`go vet ./...`、Linuxでは `go test -race -skip '^TestFoundationRetentionVolume$' ./...`。全保持量の試験は両OSの通常Go試験とfoundationジョブで必須とし、race計測からだけ分離する（FOUNDATION_GATE.md参照）。`web/` では `pnpm exec vp check`・`pnpm exec vp test`、ビルド済みの `dist/controlplane` と `dist/devcert` を使って `pnpm exec playwright test`。結果はPROGRESS.md。Go形式チェックは `gofmt -l cmd internal` が空であること。
 
 HTTP統合試験でも招待の追加フィールドによる範囲変更拒否、受諾・取消、ユーザー無効化・再有効化、パスワード変更時のCookie削除と失効、Owner再認証と最後のOwner保護を確認する。
 
