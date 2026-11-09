@@ -17,11 +17,11 @@ test.afterAll(async () => {
   await server.stop();
 });
 
-test("a real Agent enrolls with a one-time code, connects over mTLS and is revoked", async ({
+test("a real Agent reconnects after an outage and restart, then is revoked and deleted", async ({
   page,
 }) => {
-  // Enrollment plus two polled tasks can exceed the default 30-second budget.
-  test.setTimeout(90_000);
+  // Include two polled tasks and the real 60-second disconnect boundary.
+  test.setTimeout(180_000);
   const clean = watchConsole(page);
   await login(page, server.origin, "owner", ownerPassword);
   await page.goto(`${server.origin}/hosts`);
@@ -73,6 +73,18 @@ test("a real Agent enrolls with a one-time code, connects over mTLS and is revok
   await expect(page.getByText(/再実行済み（/)).toBeVisible();
   await page.getByRole("link", { name: "ホスト一覧" }).click();
 
+  await server.stopAgent();
+  await expect(async () => {
+    await page.reload();
+    await expect(row.getByText("切断", { exact: true })).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 75_000 });
+  await server.restart();
+  await server.restartAgent();
+  await expect(async () => {
+    await page.reload();
+    await expect(row.getByText("接続中")).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 25_000 });
+
   await row.getByRole("button", { name: "失効" }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "失効する" }).click();
   await expect(row.getByText("失効", { exact: true })).toBeVisible();
@@ -82,5 +94,8 @@ test("a real Agent enrolls with a one-time code, connects over mTLS and is revok
   expect(audit).toContain("agent.enroll");
   expect(audit).toContain("host.revoke");
   expect(audit).not.toContain(code.split(".")[1]);
+  await row.getByRole("button", { name: "agent-hostを削除" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "削除する" }).click();
+  await expect(row).toHaveCount(0);
   clean();
 });

@@ -94,6 +94,41 @@ jobs:
             dist/release/SHA256SUMS
           retention-days: 14
 
+  foundation:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: .go-version
+          cache: true
+      - name: Authorization, concurrent operations, retention volume and recovery
+        shell: bash
+        run: |
+          set -o pipefail
+          go test -v -count=1 -timeout=10m ./internal/controlplane ./internal/store ./internal/recovery -run '^TestFoundation' 2>&1 | tee foundation-results.txt
+      - name: Capacity failure on a bounded filesystem
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -o pipefail
+          bash scripts/check-foundation-capacity.sh 2>&1 | tee foundation-capacity.txt
+      - name: Dependency vulnerability check
+        shell: bash
+        run: |
+          set -o pipefail
+          go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./... 2>&1 | tee foundation-vulnerabilities.txt
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: foundation-${{ matrix.os }}
+          path: foundation-*.txt
+          retention-days: 14
+
   # Install the archive by following docs/INSTALL.md on the supported systems.
   install-ubuntu:
     needs: web
@@ -201,7 +236,7 @@ jobs:
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [go, web, windows-release, install-ubuntu, install-debian, restore-debian]
+    needs: [go, web, foundation, windows-release, install-ubuntu, install-debian, restore-debian]
     runs-on: ubuntu-latest
     permissions:
       contents: write

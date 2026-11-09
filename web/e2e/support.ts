@@ -22,6 +22,8 @@ export interface ControlPlane {
   // Enrolls a real Agent with the code, then keeps it running until stop.
   startAgent: (code: string) => Promise<void>;
   stopAgent: () => Promise<void>;
+  restartAgent: () => Promise<void>;
+  restart: () => Promise<void>;
   backupAndRestore: () => Promise<void>;
   stop: () => Promise<void>;
 }
@@ -144,6 +146,14 @@ export async function startControlPlane(): Promise<ControlPlane> {
       agent = spawn(agentBinary, agentArgs, { stdio: "ignore" });
     },
     stopAgent,
+    restartAgent: async () => {
+      await stopAgent();
+      agent = spawn(agentBinary, agentArgs, { stdio: "ignore" });
+    },
+    restart: async () => {
+      await stopProcess();
+      await launch();
+    },
     backupAndRestore: async () => {
       const identity = join(dir, "recovery.key");
       const archive = join(dir, "snapshot.age");
