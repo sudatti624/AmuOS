@@ -53,6 +53,10 @@ func scratch(parent, prefix string) (string, func(), error) {
 	}
 	marker := filepath.Join(directory, ".amuos-stage")
 	if err := os.WriteFile(marker, []byte("amuos-maintenance-stage-v1\n"), 0600); err != nil {
+		// A full filesystem can create the file but fail to write its contents.
+		// Remove that incomplete marker before removing our new directory, so
+		// the next maintenance attempt does not encounter an invalid stage.
+		_ = os.Remove(marker)
 		_ = os.Remove(directory)
 		return "", nil, err
 	}
