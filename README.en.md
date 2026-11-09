@@ -116,14 +116,14 @@ For v1.0, we aim to connect file placement, runtime configuration, deployment, s
 | Version | Milestone | Status |
 |---|---|---|
 | v0.1–v0.4 | Authentication and permissions, auditing, backup/recovery, Agent monitoring, and Linux/Windows foundations | Released |
-| v0.5 | CI-led foundation verification: authorization, recovery, load, and failure scenarios | Additional tests implemented; CI acceptance pending |
+| v0.5 | CI-led foundation verification: authorization, recovery, load, and failure scenarios | Verification complete; unreleased |
 | v0.6 | Browsing, transferring, editing, and organizing files within permitted directories | Planned |
 | v0.7 | Application runtimes, deployment, lifecycle controls, logs/monitoring, updates, and rollback | Planned |
 | v0.8 | Container deployment and operation with Docker/Compose | Planned |
 | v0.9 | Basic VM management and backup/recovery through one supported virtualization engine | Planned |
 | v1.0 | Release verification of integrated operations, permissions, and failure recovery across the main features | Planned |
 
-Additional verification tests for v0.5 are implemented; overall CI acceptance is pending. Work on v0.6 and later has not started. Versions describe milestones, not release dates. Deployment, container, and VM features will initially target Linux hosts, with management also available through a Control Plane running on Windows.
+Foundation verification for v0.5 is complete in CI; the release has not been published. Work on v0.6 and later has not started. Versions describe milestones, not release dates. Deployment, container, and VM features will initially target Linux hosts, with management also available through a Control Plane running on Windows.
 
 Release decisions will primarily use CI for core workflows, authorization, and failure recovery. A 24-hour run or a separate manual environment check is not a universal release requirement. Environment-specific issues will be collected through Issues and, where possible, covered by regression tests after fixes. See the [development plan](docs/PLAN.md) and [specification](docs/SPECIFICATION.md) (Japanese).
 
