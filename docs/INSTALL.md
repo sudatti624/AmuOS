@@ -4,7 +4,7 @@
 
 Windows amd64のサービス導入・更新・切り戻しは [Windows導入手順](INSTALL-WINDOWS.md) を参照してください。
 
-開発版v0.6のファイル管理を使う場合は、[FILES.md](FILES.md)のAgent設定・OS権限・systemd overrideも適用します。既定のAgentサービスはファイル管理を無効にしています。
+v0.6のファイル管理を使う場合は、[FILES.md](FILES.md)のAgent設定・OS権限・systemd overrideも適用します。既定のAgentサービスはファイル管理を無効にしています。
 
 > [!WARNING]
 > AmuOSは開発途中のソフトウェアです。systemdでの常駐、更新と切り戻しは自動テストの環境で確認していますが、実機での長時間運転や独立した環境での復元はまだ確認できていません。本番環境やインターネットに公開された環境での利用はお控えください。

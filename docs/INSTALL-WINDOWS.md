@@ -2,7 +2,7 @@
 
 Windows amd64のControl PlaneとAgentは、NTFS上でWindowsサービスとして動作します。Windows 11・Windows Server 2025を対象とします。Windowsサービスの登録とアクセス権の設定には、管理者として起動した64ビットPowerShell 5.1以降を使用します。WSLは不要です。開発途中のため、本番利用はお控えください。
 
-開発版v0.6のファイル管理を有効にする設定と専用ディレクトリの権限は[FILES.md](FILES.md)を参照してください。新規AgentサービスのInstallには`-FileRoots`を指定できます。省略時はファイル管理を無効にします。
+v0.6のファイル管理を有効にする設定と専用ディレクトリの権限は[FILES.md](FILES.md)を参照してください。新規AgentサービスのInstallには`-FileRoots`を指定できます。省略時はファイル管理を無効にします。
 
 ## 配布ファイルの確認
 
