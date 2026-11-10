@@ -20,9 +20,9 @@ A self-hosted project for managing Linux and Windows hosts through one web inter
 
 AmuOS aims to bring hosts, applications, files, monitoring, and permissions together under one URL and one login. It installs on an existing operating system without requiring an OS reinstall.
 
-The current published version is **v0.5.0 (pre-release)**. It provides authentication and access control, Agent-based host monitoring, audit logs, backups and recovery, and service installation and updates on Linux and Windows. **File management, application deployment, Docker/Compose, and VM management are not included in this published release.**
+The current published version is **v0.6.0 (pre-release)**. It provides authentication and access control, Agent-based host monitoring, file management within allowed directories, audit logs, backups and recovery, and service installation and updates on Linux and Windows. **Application deployment, Docker/Compose, and VM management are planned features.**
 
-The development build adds v0.6 file management: list, inspect, transfer, create, edit UTF-8 text, rename, move, and delete within allowed directories from host details. Files are limited to 256 KiB, and explicit Agent configuration is required. See [configuration and limitations](docs/FILES.md) (Japanese). Linux/Windows [CI validation](https://github.com/sudatti624/AmuOS/actions/runs/42784069149) is complete; this feature is not yet in the published release.
+File management lets you list, inspect, transfer, create, edit UTF-8 text, rename, move, and delete within allowed directories from host details. Files are limited to 256 KiB, and explicit Agent configuration is required. See [configuration and limitations](docs/FILES.md) (Japanese). Linux/Windows validation and publication were confirmed in [v0.6.0 CI](https://github.com/sudatti624/AmuOS/actions/runs/42786485172).
 
 > [!WARNING]
 > AmuOS is in early development. APIs and data formats may change without notice. Please avoid using it in production or exposing it to the public internet. See each release's notes and installation guide for supported features and limitations.
@@ -41,15 +41,15 @@ The development build adds v0.6 file management: list, inspect, transfer, create
 - [License](#license)
 
 <p align="center">
-  <img src="docs/images/files.png" alt="File management in the v0.6 development build, showing an allowed directory and UTF-8 text editing with sample data" width="1000">
+  <img src="docs/images/files.png" alt="File management in v0.6, showing an allowed directory and UTF-8 text editing with sample data" width="1000">
   <br>
-  <sub>File management in the v0.6 development build. Files, host names, and values are sample data, not real environment information or measurements. This feature is not included in the published v0.5.0 release.</sub>
+  <sub>An example of file management in v0.6, captured during development. Files, host names, and values are sample data, not real environment information or measurements.</sub>
 </p>
 
 <details>
 <summary>View host details, monitoring, host list, and overview screenshots</summary>
 
-These screenshots also show the v0.6 development UI with sample data. The display varies by version and configuration.
+These screenshots were also captured during development using the v0.6 UI with sample data. The display varies by version and configuration.
 
 **Host details** — View monitoring values and files in an allowed directory on the same screen.
 
@@ -77,6 +77,7 @@ These screenshots also show the v0.6 development UI with sample data. The displa
 | Hosts and Agents | One-time enrollment codes, mTLS connections, automatic credential renewal, connection status, revocation, and deletion |
 | Monitoring and history | Host CPU, memory, disk, and network metrics; host information; history charts; configurable collection intervals and retention. Linux also supports systemd status reporting |
 | Collection tasks | Collect now, task status and results, cancellation before dispatch, manual re-runs as new tasks with retry limits, and manual resolution of unknown results |
+| File management | List, inspect, transfer, create, edit UTF-8 text, rename, move, and delete within allowed directories. Files are limited to 256 KiB. Agent configuration and directory-specific permissions are required |
 | Audit logs | Important operations and rejected requests, before/after summaries, request IDs, configurable retention, and expired-log cleanup |
 | Operations | Encrypted backups while stopped, restoration to the same product version, background services, updates, and rollback. Agents must enroll again after a Control Plane restore |
 
@@ -89,7 +90,7 @@ The web interface is currently in Japanese, with dark/light themes and layouts f
 | Linux amd64 | A tar.gz package for Ubuntu Server 24.04 LTS / Debian 13. Control Plane and Agent run as systemd services | [Linux installation](docs/INSTALL.md) (Japanese) |
 | Windows amd64 | A ZIP package for Control Plane and Agent, using Windows services, dedicated accounts, and NTFS access controls. WSL is not required | [Windows installation](docs/INSTALL-WINDOWS.md) (Japanese) |
 
-On Windows, load averages, swap, boot time, systemd status, and CPU usage on hosts with more than 64 logical CPUs are unavailable. Disk I/O requires accessible Windows performance counters. Missing values are not reported as zero. See the [v0.5.0 release notes](docs/releases/v0.5.0.md) (Japanese) for details and tested environments.
+On Windows, load averages, swap, boot time, systemd status, and CPU usage on hosts with more than 64 logical CPUs are unavailable. Disk I/O requires accessible Windows performance counters. Missing values are not reported as zero. See the [v0.6.0 release notes](docs/releases/v0.6.0.md) (Japanese) for details and tested environments.
 
 ## Getting started
 
@@ -123,13 +124,13 @@ For v1.0, we aim to connect file placement, runtime configuration, deployment, s
 |---|---|---|
 | v0.1–v0.4 | Authentication and permissions, auditing, backup/recovery, Agent monitoring, and Linux/Windows foundations | Released |
 | v0.5 | CI-led foundation verification: authorization, recovery, load, and failure scenarios | v0.5.0 released |
-| v0.6 | Browsing, transferring, editing, and organizing files within permitted directories | Implemented and CI-verified; not yet released |
+| v0.6 | Browsing, transferring, editing, and organizing files within permitted directories | v0.6.0 released |
 | v0.7 | Application runtimes, deployment, lifecycle controls, logs/monitoring, updates, and rollback | Planned |
 | v0.8 | Container deployment and operation with Docker/Compose | Planned |
 | v0.9 | Basic VM management and backup/recovery through one supported virtualization engine | Planned |
 | v1.0 | Release verification of integrated operations, permissions, and failure recovery across the main features | Planned |
 
-Foundation verification for v0.5 is complete in CI, and v0.5.0 has been published. v0.6 is implemented and CI-verified but has not yet been released. Work on v0.7 and later has not started. Versions describe milestones, not release dates. Deployment, container, and VM features will initially target Linux hosts, with management also available through a Control Plane running on Windows.
+Following foundation verification for v0.5, file management implementation and CI validation are complete, and v0.6.0 has been published. Work on v0.7 and later has not started. Versions describe milestones, not release dates. Deployment, container, and VM features will initially target Linux hosts, with management also available through a Control Plane running on Windows.
 
 Release decisions will primarily use CI for core workflows, authorization, and failure recovery. A 24-hour run or a separate manual environment check is not a universal release requirement. Environment-specific issues will be collected through Issues and, where possible, covered by regression tests after fixes. See the [development plan](docs/PLAN.md) and [specification](docs/SPECIFICATION.md) (Japanese).
 

@@ -337,3 +337,14 @@ Windows短縮パス修正を0de6949でpushし、[CI run 42784069149](https://git
 Linuxのファイル容量試験TestFileCapacityFailureも成功し、依存検査はNo vulnerabilities foundだった。Windowsでは短縮パスを使用するファイル管理E2Eが成功し、追加した8.3名の回帰試験と実NTFSジャンクション拒否試験を含むGo試験も成功した。初回CIで見つかった不具合を未解消のまま成功扱いしていない。
 
 順序7と日英README・検証状況を「実装・CI検証済み、未リリース」へ更新した。1ファイル256 KiB・専用許可ディレクトリ・外部プロセスとの同時変更非対応などの契約はFILES.mdのまま。タグ/リリースは作成せず、公開配布版はv0.5.0を維持する。v0.7以降は未着手。
+
+## v0.6.0 プレリリース公開（2026-11-10）
+
+公開指示に基づき、v0.5/v0.4の構成に合わせたリリースノートを作成した。ファイル管理の機能と有効化手順、転送上限・退避・タスク、スキーマ14への移行と切戻し、基盤バックアップとホスト側データの違い、検証範囲を記載した。配布物の導入/BACKUP文書とAPI/OPERATIONSの版表記を整え、60951e5をmainへpushし、同コミットに注釈タグv0.6.0を付けた。
+
+[タグCI run 42786485172](https://github.com/sudatti624/AmuOS/actions/runs/42786485172)は公開処理を含む全10ジョブが成功し、[v0.6.0プレリリース](https://github.com/sudatti624/AmuOS/releases/tag/v0.6.0)を公開した。公開されたLinux tar.gz・Windows ZIP・SHA256SUMSを取得してハッシュを照合し、両CLI、導入手順、BACKUP.md、FILES.md、サービス用設定/スクリプト、依存ライセンスの同梱を確認した。公開ノートとソースは一致し、Windows両実バイナリもv0.6.0を表示した。アーカイブ内に不正パス・リンク・想定外ファイルがないことも確認した。
+
+- `amuos_0.6.0_linux_amd64.tar.gz`：`fb15ed1e96000872abeeb3e8c9d29e8cd08edec751b7384316f6b2fd79e7bac2`
+- `amuos_0.6.0_windows_amd64.zip`：`54a2325cb20d42edaa340b89cd3e17990147d6a0f9390e160faf6bbe3382fbb6`
+
+検証用の取得物はGit管理外のdist/v0.6.0-publishedへ保存した。日英READMEと計画を公開済みへ更新し、サンプル画像は開発時に撮影したものであることを保持した。v0.7以降は未着手。
