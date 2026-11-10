@@ -329,3 +329,11 @@ f4b30c4までの5コミットをmainへpushした。[CI run 42782920139](https:/
 原因はWindowsの8.3短縮名（RUNNER~1など）と長いパス名の表記差を、ルート設定のリンク検査が誤って拒否していたことだった。パス文字列の比較に代え、各ディレクトリのLstat属性でsymlink/reparse pointを拒否した後に名前を解決するよう変更した。短縮名を使うファイル操作と保護領域の照合、実NTFSジャンクションのルート/祖先/内容アクセス拒否を回帰試験に追加した。
 
 ローカルWindows・Go 1.27.3で短縮名とジャンクションの両試験、全Goテスト・vet・Agentビルドが成功した。権限がない環境でのsymlink作成試験はskipであり、ジャンクション試験の成功と区別している。修正後のCIが全成功するまで出荷判定を保留する。
+
+## v0.6のCI全成功（2026-11-10）
+
+Windows短縮パス修正を0de6949でpushし、[CI run 42784069149](https://github.com/sudatti624/AmuOS/actions/runs/42784069149)の全9必須ジョブが成功した。Linux/Windows Go・vet、Linux race、両OSの基盤検証、Linux容量不足、Web check/14テスト/build、Linux/Windowsの実Agentを含むPlaywright全6件、Windows ZIP/実サービス/NTFS保護/更新/切戻し、Ubuntu/Debian導入とUbuntuから空のDebianへの独立復元を確認した。releaseは通常ブランチのためskipした。
+
+Linuxのファイル容量試験TestFileCapacityFailureも成功し、依存検査はNo vulnerabilities foundだった。Windowsでは短縮パスを使用するファイル管理E2Eが成功し、追加した8.3名の回帰試験と実NTFSジャンクション拒否試験を含むGo試験も成功した。初回CIで見つかった不具合を未解消のまま成功扱いしていない。
+
+順序7と日英README・検証状況を「実装・CI検証済み、未リリース」へ更新した。1ファイル256 KiB・専用許可ディレクトリ・外部プロセスとの同時変更非対応などの契約はFILES.mdのまま。タグ/リリースは作成せず、公開配布版はv0.5.0を維持する。v0.7以降は未着手。

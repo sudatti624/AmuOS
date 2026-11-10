@@ -20,9 +20,9 @@ A self-hosted project for managing Linux and Windows hosts through one web inter
 
 AmuOS aims to bring hosts, applications, files, monitoring, and permissions together under one URL and one login. It installs on an existing operating system without requiring an OS reinstall.
 
-The current published version is **v0.5.0 (pre-release)**. It provides authentication and access control, Agent-based host monitoring, audit logs, backups and recovery, and service installation and updates on Linux and Windows. **Application deployment, file management, Docker/Compose, and VM management are planned features.**
+The current published version is **v0.5.0 (pre-release)**. It provides authentication and access control, Agent-based host monitoring, audit logs, backups and recovery, and service installation and updates on Linux and Windows. **File management, application deployment, Docker/Compose, and VM management are not included in this published release.**
 
-The development build adds v0.6 file management: list, inspect, transfer, create, edit UTF-8 text, rename, move, and delete within allowed directories from host details. Files are limited to 256 KiB, and explicit Agent configuration is required. See [configuration and limitations](docs/FILES.md) (Japanese). This feature is not in the published release; remote Linux/Windows CI validation is pending.
+The development build adds v0.6 file management: list, inspect, transfer, create, edit UTF-8 text, rename, move, and delete within allowed directories from host details. Files are limited to 256 KiB, and explicit Agent configuration is required. See [configuration and limitations](docs/FILES.md) (Japanese). Linux/Windows [CI validation](https://github.com/sudatti624/AmuOS/actions/runs/42784069149) is complete; this feature is not yet in the published release.
 
 > [!WARNING]
 > AmuOS is in early development. APIs and data formats may change without notice. Please avoid using it in production or exposing it to the public internet. See each release's notes and installation guide for supported features and limitations.
@@ -123,13 +123,13 @@ For v1.0, we aim to connect file placement, runtime configuration, deployment, s
 |---|---|---|
 | v0.1–v0.4 | Authentication and permissions, auditing, backup/recovery, Agent monitoring, and Linux/Windows foundations | Released |
 | v0.5 | CI-led foundation verification: authorization, recovery, load, and failure scenarios | v0.5.0 released |
-| v0.6 | Browsing, transferring, editing, and organizing files within permitted directories | Implemented in development; remote CI pending |
+| v0.6 | Browsing, transferring, editing, and organizing files within permitted directories | Implemented and CI-verified; not yet released |
 | v0.7 | Application runtimes, deployment, lifecycle controls, logs/monitoring, updates, and rollback | Planned |
 | v0.8 | Container deployment and operation with Docker/Compose | Planned |
 | v0.9 | Basic VM management and backup/recovery through one supported virtualization engine | Planned |
 | v1.0 | Release verification of integrated operations, permissions, and failure recovery across the main features | Planned |
 
-Foundation verification for v0.5 is complete in CI, and v0.5.0 has been published. v0.6 is under validation in development; work on v0.7 and later has not started. Versions describe milestones, not release dates. Deployment, container, and VM features will initially target Linux hosts, with management also available through a Control Plane running on Windows.
+Foundation verification for v0.5 is complete in CI, and v0.5.0 has been published. v0.6 is implemented and CI-verified but has not yet been released. Work on v0.7 and later has not started. Versions describe milestones, not release dates. Deployment, container, and VM features will initially target Linux hosts, with management also available through a Control Plane running on Windows.
 
 Release decisions will primarily use CI for core workflows, authorization, and failure recovery. A 24-hour run or a separate manual environment check is not a universal release requirement. Environment-specific issues will be collected through Issues and, where possible, covered by regression tests after fixes. See the [development plan](docs/PLAN.md) and [specification](docs/SPECIFICATION.md) (Japanese).
 

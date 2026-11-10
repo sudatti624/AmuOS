@@ -72,7 +72,7 @@ Go全test/vet、Linux amd64 vet/クロスビルド、Web check/test(14件)/build
 | 段階 | 主な追加検証 | 状態 |
 |---|---|---|
 | v0.5 基盤ゲート | CIでの配布物導入・クリーン環境復元・認可総合試験、操作反復・負荷・通信断/再起動・時計/保持境界 | 完了。4a8cfc0のCI run 42635099511で全必須ジョブ成功。条件と実行方法は[FOUNDATION_GATE.md](FOUNDATION_GATE.md) |
-| v0.6 ファイル | Linux/Windowsの許可ディレクトリでの全基本操作、RBAC/OS権限、リンク/reparse point・競合・転送中断・容量不足・回復 | 試験実装・ローカルWindowsで検証。Linux/WindowsのリモートCIとLinux容量不足試験は未判定。FILES.md・PROGRESS.md参照 |
+| v0.6 ファイル | Linux/Windowsの許可ディレクトリでの全基本操作、RBAC/OS権限、リンク/reparse point・競合・転送中断・容量不足・回復 | 実装・CI検証済み。0de6949のCI run 42784069149で全9必須ジョブ成功。短縮パス/実NTFSジャンクション、Linux容量不足・race、両OSの実Agent E2Eを含む。FILES.md・PROGRESS.md参照 |
 | v0.7 デプロイ | 実行環境/依存関係・秘密値、Git/アップロード配置、起動制御・ログ/監視・更新/切戻し、ポート競合・実行失敗・再起動/重複配送 | 未着手 |
 | v0.8 Docker/Compose | 作成/起動制御/削除、イメージ/ボリューム/設定、Compose更新/切戻し、エンジン障害・高権限Adapterと範囲外拒否 | 未着手 |
 | v0.9 VM | 対応Adapterでの作成/起動制御/資源設定/コンソール/スナップショット/バックアップ/復元、資源不足・中断照合と権限分離 | 未着手 |
