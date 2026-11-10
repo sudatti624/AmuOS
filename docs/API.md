@@ -204,3 +204,20 @@ POST /agent/v1/tasks/{id}/result はid、attempt_id、input_hash、outcome（suc
 
 POST /agent/v1/systemd はcollected_at、available、truncated、units（unit/load/active/sub）を送る。所属ホストは資格情報から決定する。GET /api/v1/hosts/{id}/systemd は親ホストのhost.read範囲に限定し、received_atを加えた最終状態、未受信ならnullを返す。失効後の書込みは拒否する。変更操作は提供しない。
 タスク結果の受領応答は acknowledged に加えて state と finished_at（未確定ならnull）を返す。Agentはこの状態と時刻を保持の判断に使い、サーバーでunknownとなった結果を終端として清掃しない。heartbeatのtasks capabilityは、新規タスクを受領できる間だけ送る。満杯などで受領できない場合は次のheartbeatから外れ、空きが戻れば復帰する。
+
+## ファイル管理（開発版v0.6）
+
+ローカル許可範囲・上限・OS権限・復旧方法は[FILES.md](FILES.md)、認可判断はADR-027による。セッションAPIを4件追加する。変更系はOrigin・CSRFを必要とする。
+
+| Method / Path | 入出力 | 認可 |
+|---|---|---|
+| GET `/api/v1/hosts/{id}/file-roots` | `items`にalias/read_roles/write_rolesを返す | ホストを閲覧でき、ルートの閲覧/変更またはホスト管理を許される人。物理パスは返さない |
+| PUT `/api/v1/hosts/{id}/file-roots` | `{"roots":[{"alias":"work","read_roles":["Admin","Operator"],"write_roles":["Admin"]}]}`で設定を置換 | ホストAdmin以上。最大16ルート、Viewerへの変更許可は禁止 |
+| POST `/api/v1/hosts/{id}/files` | Requestを受け付けて201と通常のTaskを返す。Idempotency-Key必須 | ホスト・ルート・操作を同じ割当で照合 |
+| GET `/api/v1/tasks/{id}/file-result` | 確定済み結果のentries/info/data/errorを返す。dataはbase64 | 依頼者本人と現在のルート権限。未確定は409、対象範囲外は404 |
+
+Requestは`root`（alias）、`action`、`path`（ルートからの相対パス。ルート自身は`.`）を持つ。actionは`list/stat/read/create/mkdir/write/move/delete`。`create`のdataは任意のバイト列、`write`のdataはNULを含まないUTF-8テキストのbase64。いずれも256 KiB以内。`write/move/delete`は`etag`と`confirm:true`を必須とし、`move`だけ`destination`を指定する。名前変更は同じ親へのmove。既存宛先へのmove・ルート自体の変更・空でないディレクトリ削除は拒否する。
+
+一覧/情報/読取りは、name/directory/size/modified/etagを返す。AgentのOSエラーや絶対パスは返さず、実行失敗は`error:file_operation_failed`とタスクfailedで示す。テキストとして開けない場合はダウンロードを使う。本文は監査へ保存しない。
+
+Agentのheartbeatに`files_v1`を追加する。ローカルルートが有効でタスクを受領できるときだけ送信する。`tasks/poll`のfile操作は`operation:file`と`file:Request`を含み、input_hashはRequestの正規JSONのSHA-256。Agentは一致を確認してからジャーナルへ保存し、受領確認後に実行する。受領確認時にも依頼者のルート権限を確認する。結果送信は既存TaskResultに`file:Result`を加える。同じ結果の再送は再実行しない。汎用retryはfileタスクを拒否する。

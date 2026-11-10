@@ -1,6 +1,6 @@
 # Install as /etc/systemd/system/amuos-agent.service on each managed host
-# (see INSTALL.md). The Agent only reads host information; stopping it never
-# stops anything else on the host.
+# (see INSTALL.md). File roots are disabled unless explicitly configured.
+# See FILES.md for a restricted systemd override.
 [Unit]
 Description=AmuOS agent
 Documentation=https://github.com/sudatti624/AmuOS

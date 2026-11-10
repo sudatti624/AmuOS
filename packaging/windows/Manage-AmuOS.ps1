@@ -9,6 +9,7 @@ param(
  [string]$Certificate,
  [string]$PrivateKey,
  [string]$CAFile,
+ [string]$FileRoots,
  [string]$Server = 'https://localhost:8443',
  [string]$AgentServer = 'https://localhost:9443',
  [string]$Address = '127.0.0.1:8443',
@@ -84,6 +85,11 @@ if ($Action -eq 'Install') {
   if (!$CAFile) { throw '-CAFile is required.' }
   Copy-Item -LiteralPath $CAFile -Destination (Join-Path $Root 'ca.pem')
   $serviceArgs = @('--state-dir', $state, '--server', $Server, '--agent-server', $AgentServer, '--ca-file', (Join-Path $Root 'ca.pem'))
+  if ($FileRoots) {
+   Assert-LocalPath $FileRoots
+   Copy-Item -LiteralPath $FileRoots -Destination (Join-Path $Root 'file-roots.json')
+   $serviceArgs += @('--file-roots', (Join-Path $Root 'file-roots.json'))
+  }
  }
  # Reject quotes/newlines before constructing the SCM command line.
  foreach ($arg in @($exe) + $serviceArgs) { if ($arg -match '["\r\n]') { throw 'Paths and arguments cannot contain quotes or line breaks.' } }

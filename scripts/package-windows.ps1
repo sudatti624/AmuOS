@@ -15,7 +15,7 @@ try {
  }
  & go run ./scripts/licenses -out (Join-Path $stage 'THIRD_PARTY_LICENSES.md')
  if ($LASTEXITCODE -ne 0) { throw 'License generation failed' }
- Copy-Item -LiteralPath LICENSE,docs/INSTALL-WINDOWS.md,docs/BACKUP.md -Destination $stage
+ Copy-Item -LiteralPath LICENSE,docs/INSTALL-WINDOWS.md,docs/BACKUP.md,docs/FILES.md -Destination $stage
  Copy-Item -LiteralPath packaging/windows -Destination (Join-Path $stage 'packaging') -Recurse
  $zip = Join-Path $out ($name + '.zip')
  if (Test-Path -LiteralPath $zip) { throw 'Archive already exists' }

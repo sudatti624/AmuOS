@@ -19,6 +19,7 @@ go run ./scripts/licenses -out "$out/$name/THIRD_PARTY_LICENSES.md"
 cp LICENSE "$out/$name/LICENSE"
 cp docs/INSTALL.md "$out/$name/INSTALL.md"
 cp docs/BACKUP.md "$out/$name/BACKUP.md"
+cp docs/FILES.md "$out/$name/FILES.md"
 mkdir "$out/$name/packaging"
 cp packaging/amuos-controlplane.service packaging/controlplane.env packaging/amuos-agent.service packaging/agent.env "$out/$name/packaging/"
 
