@@ -41,15 +41,19 @@ The development build adds v0.6 file management: list, inspect, transfer, create
 - [License](#license)
 
 <p align="center">
-  <img src="docs/images/host-detail.png" alt="AmuOS host details with sample metrics, collection tasks, and service states" width="1000">
+  <img src="docs/images/files.png" alt="File management in the v0.6 development build, showing an allowed directory and UTF-8 text editing with sample data" width="1000">
   <br>
-  <sub>The current host details UI with sample data. Values are illustrative, not measurements from a real host.</sub>
+  <sub>File management in the v0.6 development build. Files, host names, and values are sample data, not real environment information or measurements. This feature is not included in the published v0.5.0 release.</sub>
 </p>
 
 <details>
-<summary>View monitoring, host list, and overview screenshots</summary>
+<summary>View host details, monitoring, host list, and overview screenshots</summary>
 
-These screenshots also show the current UI with sample data. The display varies by version and configuration.
+These screenshots also show the v0.6 development UI with sample data. The display varies by version and configuration.
+
+**Host details** — View monitoring values and files in an allowed directory on the same screen.
+
+<img src="docs/images/host-detail.png" alt="Host details with sample CPU and memory metrics and a file listing in an allowed directory" width="1000">
 
 **Monitoring history** — CPU, memory, disk, and network trends.
 
