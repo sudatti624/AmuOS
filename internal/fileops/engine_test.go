@@ -124,3 +124,21 @@ func TestPathsLinksLimitsAndCancellation(t *testing.T) {
 		t.Fatal("protected ancestor")
 	}
 }
+
+func TestFileRootRejectsLinksInAncestors(t *testing.T) {
+	base := t.TempDir()
+	target := t.TempDir()
+	if err := os.Mkdir(filepath.Join(target, "child"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	alias := filepath.Join(base, "alias")
+	if err := os.Symlink(target, alias); err != nil {
+		t.Skipf("directory links require OS support: %v", err)
+	}
+	for _, root := range []string{alias, filepath.Join(alias, "child")} {
+		if engine, err := New(map[string]RootConfig{"work": {Path: root}}); err == nil {
+			engine.Close()
+			t.Fatalf("accepted directory link %s", root)
+		}
+	}
+}

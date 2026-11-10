@@ -35,12 +35,12 @@ func New(config map[string]RootConfig, protected ...string) (*Engine, error) {
 		if !ValidName(name) || !filepath.IsAbs(cfg.Path) {
 			return fail(errors.New("file roots require an alias and absolute path"))
 		}
+		if err := checkRootDirectory(cfg.Path); err != nil {
+			return fail(err)
+		}
 		absolute, err := filepath.EvalSymlinks(cfg.Path)
 		if err != nil {
 			return fail(err)
-		}
-		if !strings.EqualFold(filepath.Clean(absolute), filepath.Clean(cfg.Path)) {
-			return fail(errors.New("file root must not use links"))
 		}
 		for _, p := range protected {
 			if p == "" {
@@ -69,6 +69,30 @@ func New(config map[string]RootConfig, protected ...string) (*Engine, error) {
 		e.roots[name] = mountedRoot{root, cfg.ReadOnly}
 	}
 	return e, nil
+}
+
+// EvalSymlinks also expands Windows 8.3 names. A different spelling is not
+// evidence of a link: inspect every directory's attributes before resolving it.
+func checkRootDirectory(name string) error {
+	for _, part := range strings.Split(filepath.ToSlash(name), "/") {
+		if part == "." || part == ".." {
+			return errors.New("file root must use a direct absolute path")
+		}
+	}
+	for current := filepath.Clean(name); ; {
+		info, err := os.Lstat(current)
+		if err != nil {
+			return err
+		}
+		if info.Mode()&os.ModeSymlink != 0 || unsafeInfo(info) || !info.IsDir() {
+			return errors.New("file root must not use links")
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return nil
+		}
+		current = parent
+	}
 }
 func overlaps(a, b string) bool {
 	a = strings.ToLower(filepath.Clean(a))
