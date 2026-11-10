@@ -280,6 +280,7 @@ export function HostTasks({ host, onCollected }: { host: Host; onCollected: () =
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">
                   <div className="flex flex-col gap-0.5">
+                    <span>{task.operation === "file" ? "ファイル操作" : "監視値の収集"}</span>
                     {task.reason && <span>{reasons[task.reason] ?? task.reason}</span>}
                     {task.retry_of && <span>再実行（元: {shortId(task.retry_of)}）</span>}
                     {task.retried_by && <span>再実行済み（{shortId(task.retried_by)}）</span>}
@@ -299,17 +300,20 @@ export function HostTasks({ host, onCollected }: { host: Host; onCollected: () =
                           結果を確定
                         </Button>
                       )}
-                      {collector && retryable && host.state === "active" && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={busy}
-                          onClick={() => void retry(task)}
-                        >
-                          <RotateCcwIcon />
-                          再実行
-                        </Button>
-                      )}
+                      {collector &&
+                        task.operation !== "file" &&
+                        retryable &&
+                        host.state === "active" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={busy}
+                            onClick={() => void retry(task)}
+                          >
+                            <RotateCcwIcon />
+                            再実行
+                          </Button>
+                        )}
                     </div>
                   </TableCell>
                 )}

@@ -1,5 +1,5 @@
 import { execFile, spawn, type ChildProcess } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { request as httpsRequest } from "node:https";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -64,7 +64,7 @@ export function call(origin: string, method: string, path: string, body?: unknow
 }
 
 // Starts the real control plane binary with a new database and certificate.
-export async function startControlPlane(): Promise<ControlPlane> {
+export async function startControlPlane(options: { files?: boolean } = {}): Promise<ControlPlane> {
   const dir = await mkdtemp(join(tmpdir(), "amuos-e2e-"));
   await run(devcert, ["--dir", dir]);
   const db = join(dir, "amuos.db");
@@ -126,6 +126,13 @@ export async function startControlPlane(): Promise<ControlPlane> {
     "--ca-file",
     join(dir, "cert.pem"),
   ];
+  if (options.files) {
+    const fileRoot = join(dir, "files");
+    await mkdir(fileRoot);
+    const config = join(dir, "file-roots.json");
+    await writeFile(config, JSON.stringify({ work: { path: fileRoot, read_only: false } }));
+    agentArgs.push("--file-roots", config);
+  }
   const stopAgent = async () => {
     if (agent && agent.exitCode === null && agent.signalCode === null) {
       const exited = new Promise((r) => agent?.once("exit", r));
