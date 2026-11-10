@@ -223,3 +223,15 @@ Windows ZIPとチェックサム・依存ライセンスを作る手順を追加
 - 環境固有問題はAmuOSの版、対象コンポーネント、OS/構成/導入方法、関連エンジン、再現手順、期待値/実際の動作、秘匿化したログをIssueで収集する。再現した不具合の修正には可能な限りCI回帰試験を加える。脆弱性は既存の非公開窓口を使う。
 
 仕様§14.6/§16、PLAN、TESTING、READMEと貢献手順を整合し、不具合報告フォームを追加する。これは試験方針の変更であり、未実施の総合試験や未実装機能を完了とするものではない。公開済みリリースノートと過去の試験記録はその時点の記録として保持する。
+
+## ADR-027: Confined file operations and durable side-effect tasks (2026-11-10)
+
+The v0.5 foundation gate is complete. File management targets Linux and Windows. [FILES.md](FILES.md) defines limits, OS permissions, supported operations and recovery.
+
+- Both local Agent roots and host-scoped server policies must permit access. Physical paths stay on the host. Directory roles and host scope are checked within one grant. Viewer cannot mutate files; host Admin manages policies. Owner cannot bypass OS permissions or Agent read-only configuration.
+- Build the read-only execution path first, then add mutations within the same boundary. Pin os.Root handles; reject links, reparse points, multiple hard links and special files. Require dedicated directories with no untrusted local writers or mount changes. External concurrent writers are outside this version's contract.
+- Support list, stat, download, upload, create, UTF-8 editing, rename, move and delete. Limit each file to 256 KiB, listings to 1,000 entries and roots to 16. Require ETag and confirmation for overwrites, moves and deletion. Refuse existing move destinations and nonempty directory deletion.
+- Extend durable tasks with the file operation, input hashes, replay protection, deadlines, journaling, audit and restart-to-unknown recovery. Generic retries cannot repeat file tasks. Recheck host/directory authorization at admission, dispatch and result retrieval. Return content only to the requester; exclude content from audit.
+- Receive the whole input before execution; sync temporary files before publication. Back up regular files before edit/delete in a hidden host directory. Unknown outcomes require inspection. Host data backups are separate from management database backups.
+
+Schema 14 rebuilds the task operation constraint transactionally while preserving existing tasks and attempts. Implementation does not by itself establish that the v0.6 validation gate passed.
