@@ -25,6 +25,10 @@ func TestFileLifecycleConflictReadOnlyAndRecovery(t *testing.T) {
 		return r
 	}
 	run(Request{Action: "mkdir", Path: "folder"})
+	directory := run(Request{Action: "stat", Path: "folder"})
+	run(Request{Action: "move", Path: "folder", Destination: "renamed-folder", ETag: directory.Info.ETag, Confirm: true})
+	directory = run(Request{Action: "stat", Path: "renamed-folder"})
+	run(Request{Action: "move", Path: "renamed-folder", Destination: "folder", ETag: directory.Info.ETag, Confirm: true})
 	run(Request{Action: "create", Path: "folder/a.txt", Data: []byte("original")})
 	r := run(Request{Action: "read", Path: "folder/a.txt"})
 	if string(r.Data) != "original" {
@@ -45,7 +49,7 @@ func TestFileLifecycleConflictReadOnlyAndRecovery(t *testing.T) {
 	}
 	run(Request{Action: "delete", Path: "b.txt", ETag: r.Info.ETag, Confirm: true})
 	entries, err := os.ReadDir(filepath.Join(dir, ".amuos-history"))
-	if err != nil || len(entries) != 2 {
+	if err != nil || len(entries) != 4 {
 		t.Fatalf("history %v %v", entries, err)
 	}
 	result := run(Request{Action: "list", Path: "."})

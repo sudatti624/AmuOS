@@ -1,12 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/sudatti624/AmuOS/internal/fileops"
 	"github.com/sudatti624/AmuOS/internal/process"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -27,6 +31,7 @@ func run(ctx context.Context) error {
 	agentServer := flag.String("agent-server", "", "control plane mTLS URL for enrolled agents, e.g. https://cp.example:9443")
 	caFile := flag.String("ca-file", "", "PEM certificates that verify the control plane's TLS certificate")
 	enrollFile := flag.String("enroll-code-file", "", "enroll with the one-time code in this private file, then exit")
+	fileRootsFile := flag.String("file-roots", "", "JSON file declaring isolated directories published by this agent")
 	flag.Parse()
 	if flag.NArg() != 0 {
 		return errors.New("unexpected positional arguments")
@@ -52,7 +57,26 @@ func run(ctx context.Context) error {
 		return err
 	}
 	defer lock.Close()
-	a, err := agent.New(agent.Config{StateDir: *stateDir, Server: strings.TrimRight(*server, "/"), AgentServer: strings.TrimRight(*agentServer, "/"), Roots: roots, Version: version})
+	var fileRoots map[string]fileops.RootConfig
+	if *fileRootsFile != "" {
+		f, err := os.Open(*fileRootsFile)
+		if err != nil {
+			return err
+		}
+		data, readErr := io.ReadAll(io.LimitReader(f, 16385))
+		f.Close()
+		if readErr != nil || len(data) > 16384 {
+			return errors.New("invalid file roots configuration")
+		}
+		decoder := json.NewDecoder(bytes.NewReader(bytes.TrimPrefix(data, []byte{0xef, 0xbb, 0xbf})))
+		decoder.DisallowUnknownFields()
+		err = decoder.Decode(&fileRoots)
+		tail := decoder.Decode(new(any))
+		if err != nil || tail != io.EOF || len(fileRoots) > 16 {
+			return errors.New("invalid file roots configuration")
+		}
+	}
+	a, err := agent.New(agent.Config{FileRoots: fileRoots, ProtectedPaths: []string{*caFile, *fileRootsFile}, StateDir: *stateDir, Server: strings.TrimRight(*server, "/"), AgentServer: strings.TrimRight(*agentServer, "/"), Roots: roots, Version: version})
 	if err != nil {
 		return err
 	}

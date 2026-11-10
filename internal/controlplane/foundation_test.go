@@ -94,7 +94,7 @@ func TestFoundationHostAuthorizationMatrix(t *testing.T) {
 		})
 	}
 	// Unknown future operations fail closed, including attempts to smuggle a command.
-	for _, path := range []string{"files", "deployments", "containers", "vms", "systemd/restart"} {
+	for _, path := range []string{"deployments", "containers", "vms", "systemd/restart"} {
 		w := accountHTTP(t, h, "POST", "/api/v1/hosts/"+a.ID+"/"+path, map[string]string{"command": "id"}, owner, owner.CSRF)
 		if w.Code != 404 || strings.Contains(w.Body.String(), "scope-a") {
 			t.Fatalf("future operation %s: %d", path, w.Code)

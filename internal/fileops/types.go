@@ -88,6 +88,9 @@ func (q Request) Validate() error {
 			return errors.New("invalid create")
 		}
 	case "write", "move", "delete":
+		if q.Action == "write" && (!utf8.Valid(q.Data) || strings.ContainsRune(string(q.Data), 0)) {
+			return errors.New("UTF-8 text required")
+		}
 		if q.Path == "." || !q.Confirm || len(q.ETag) != 64 {
 			return errors.New("confirmation and etag required")
 		}

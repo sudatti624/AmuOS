@@ -2,8 +2,11 @@ package agent
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/sudatti624/AmuOS/internal/fileops"
 	"github.com/sudatti624/AmuOS/internal/store"
 	"os"
 	"path/filepath"
@@ -13,6 +16,7 @@ import (
 
 type localTask struct {
 	Delivery       store.TaskDelivery `json:"delivery"`
+	File           *fileops.Result    `json:"file,omitempty"`
 	Outcome        string             `json:"outcome"`
 	Acknowledged   bool               `json:"acknowledged"`
 	TerminalAt     int64              `json:"terminal_at,omitempty"`
@@ -43,8 +47,20 @@ func (a *Agent) syncTasks(ctx context.Context) error {
 	}
 	if reply.Task != nil {
 		d := *reply.Task
-		if !safeTaskID(d.ID) || d.Operation != "collect" || len(d.InputHash) != 64 || d.AttemptID == "" {
+		if !safeTaskID(d.ID) || (d.Operation != "collect" && d.Operation != "file") || len(d.InputHash) != 64 || d.AttemptID == "" {
 			return errors.New("invalid task delivery")
+		}
+		if d.Operation == "file" {
+			if d.File == nil || d.File.Validate() != nil {
+				return errors.New("invalid file delivery")
+			}
+			encoded, _ := json.Marshal(d.File)
+			digest := sha256.Sum256(encoded)
+			if hex.EncodeToString(digest[:]) != d.InputHash {
+				return errors.New("file input hash mismatch")
+			}
+		} else if d.File != nil {
+			return errors.New("unexpected file payload")
 		}
 		path := filepath.Join(directory, d.ID+".json")
 		if data, err := readPrivate(path); err == nil {
@@ -71,8 +87,17 @@ func (a *Agent) syncTasks(ctx context.Context) error {
 				return err
 			}
 			local.Outcome = "failed"
+			if d.Operation == "file" {
+				local.File = &fileops.Result{Error: "deadline_passed"}
+			}
 			taskCtx, cancel := context.WithDeadline(ctx, time.Unix(d.RunDeadline, 0))
-			if a.supported && a.clock().Unix() < d.AcceptDeadline && a.clock().Unix() < d.RunDeadline {
+			if d.Operation == "file" && a.clock().Unix() < d.AcceptDeadline && a.clock().Unix() < d.RunDeadline {
+				result := a.files.Execute(taskCtx, *d.File)
+				local.File = &result
+				if result.Error == "" {
+					local.Outcome = "succeeded"
+				}
+			} else if d.Operation == "collect" && a.supported && a.clock().Unix() < d.AcceptDeadline && a.clock().Unix() < d.RunDeadline {
 				info, infoErr := a.cfg.Collector.HostInfo(a.clock())
 				sample, sampleErr := a.cfg.Collector.Sample(a.clock())
 				a.seq++
@@ -144,7 +169,7 @@ func (a *Agent) reportTask(ctx context.Context, local *localTask) error {
 	if err != nil {
 		return err
 	}
-	result := store.TaskResult{TaskReceipt: store.TaskReceipt{ID: local.Delivery.ID, AttemptID: local.Delivery.AttemptID, InputHash: local.Delivery.InputHash}, Outcome: local.Outcome}
+	result := store.TaskResult{TaskReceipt: store.TaskReceipt{ID: local.Delivery.ID, AttemptID: local.Delivery.AttemptID, InputHash: local.Delivery.InputHash}, Outcome: local.Outcome, File: local.File}
 	var ack struct {
 		Acknowledged bool   `json:"acknowledged"`
 		State        string `json:"state"`

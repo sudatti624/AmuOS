@@ -4,19 +4,23 @@ import (
 	"context"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"github.com/sudatti624/AmuOS/internal/fileops"
 	"github.com/sudatti624/AmuOS/internal/rbac"
 	"github.com/sudatti624/AmuOS/internal/security"
+	"slices"
 	"time"
 )
 
 type TaskDelivery struct {
-	ID             string `json:"id"`
-	AttemptID      string `json:"attempt_id"`
-	InputHash      string `json:"input_hash"`
-	Operation      string `json:"operation"`
-	AcceptDeadline int64  `json:"accept_deadline"`
-	RunDeadline    int64  `json:"run_deadline"`
+	File           *fileops.Request `json:"file,omitempty"`
+	ID             string           `json:"id"`
+	AttemptID      string           `json:"attempt_id"`
+	InputHash      string           `json:"input_hash"`
+	Operation      string           `json:"operation"`
+	AcceptDeadline int64            `json:"accept_deadline"`
+	RunDeadline    int64            `json:"run_deadline"`
 }
 type TaskReceipt struct {
 	ID        string `json:"id"`
@@ -25,7 +29,8 @@ type TaskReceipt struct {
 }
 type TaskResult struct {
 	TaskReceipt
-	Outcome string `json:"outcome"`
+	Outcome string          `json:"outcome"`
+	File    *fileops.Result `json:"file,omitempty"`
 }
 
 // The receipt exposes the confirmed server state so a late result retained as
@@ -73,6 +78,19 @@ func (s *Store) PollTasks(ctx context.Context, serial, agentID string, receipt *
 				return err
 			}
 			if state == "dispatching" {
+				var operation, requester string
+				if err := tx.QueryRow("SELECT operation,requester_id FROM tasks WHERE id=?", receipt.ID).Scan(&operation, &requester); err != nil {
+					return err
+				}
+				if operation == "file" {
+					_, allowed, err := fileDelivery(tx, receipt.ID, p.HostID, requester)
+					if err != nil {
+						return err
+					}
+					if !allowed {
+						return ErrDenied
+					}
+				}
 				var deadline int64
 				if err := tx.QueryRow("SELECT accept_deadline FROM tasks WHERE id=?", receipt.ID).Scan(&deadline); err != nil {
 					return err
@@ -102,7 +120,25 @@ func (s *Store) PollTasks(ctx context.Context, serial, agentID string, receipt *
 		if err != nil {
 			return err
 		}
-		if !owner.Allows(rbac.Collect, p.HostID) {
+		allowed := owner.Allows(rbac.Collect, p.HostID)
+		if d.Operation == "file" {
+			var capsJSON string
+			if err := tx.QueryRow("SELECT capabilities FROM agents WHERE id=?", p.AgentID).Scan(&capsJSON); err != nil {
+				return err
+			}
+			var caps []string
+			if err := json.Unmarshal([]byte(capsJSON), &caps); err != nil {
+				return err
+			}
+			if !slices.Contains(caps, "files_v1") {
+				return nil
+			}
+			d.File, allowed, err = fileDelivery(tx, d.ID, p.HostID, requester)
+			if err != nil {
+				return err
+			}
+		}
+		if !allowed {
 			next := "failed"
 			var finished any = now.Unix()
 			if state == "dispatching" {
@@ -157,6 +193,31 @@ func (s *Store) RecordTaskResult(ctx context.Context, serial, agentID string, re
 		if err != nil {
 			return err
 		}
+		var operation string
+		if err := tx.QueryRow("SELECT operation FROM tasks WHERE id=?", result.ID).Scan(&operation); err != nil {
+			return err
+		}
+		var fileResult []byte
+		if operation == "file" {
+			if result.File == nil && result.Outcome != "unknown" {
+				return ErrInput
+			}
+			fileResult, _ = json.Marshal(result.File)
+			if len(fileResult) > fileops.MaxBody {
+				return ErrInput
+			}
+			if previous.Valid {
+				var old sql.NullString
+				if err := tx.QueryRow("SELECT result FROM file_tasks WHERE task_id=?", result.ID).Scan(&old); err != nil {
+					return err
+				}
+				if old.Valid && old.String != string(fileResult) {
+					return ErrConflict
+				}
+			}
+		} else if result.File != nil {
+			return ErrInput
+		}
 		if previous.Valid {
 			if previous.String != result.Outcome {
 				return ErrConflict
@@ -182,6 +243,11 @@ func (s *Store) RecordTaskResult(ctx context.Context, serial, agentID string, re
 		}
 		if _, err := tx.Exec("UPDATE tasks SET state=?,updated_at=?,finished_at=? WHERE id=?", next, now.Unix(), finished, result.ID); err != nil {
 			return err
+		}
+		if operation == "file" {
+			if _, err := tx.Exec("UPDATE file_tasks SET result=? WHERE task_id=?", string(fileResult), result.ID); err != nil {
+				return err
+			}
 		}
 		return audit(ctx, tx, now, p.AgentID, "task.result", result.ID, p.HostID, next, "")
 	})

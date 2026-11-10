@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -137,7 +138,7 @@ func entry(root *os.Root, p string) (Entry, error) {
 		return Entry{}, err
 	}
 	seed := []byte(fmt.Sprintf("%s/%d/%d/%d", p, info.Size(), info.ModTime().UnixNano(), info.Mode()))
-	if info.Mode().IsRegular() {
+	if info.Mode().IsRegular() && info.Size() <= MaxFile {
 		var data []byte
 		data, info, err = fileData(root, p)
 		if err != nil {
@@ -239,9 +240,6 @@ func (e *Engine) execute(ctx context.Context, q Request) (Result, error) {
 	case "mkdir":
 		err = root.Mkdir(q.Path, 0700)
 	case "move":
-		if existing.IsDir() {
-			return Result{}, errors.New("move requires regular file")
-		}
 		target, targetErr := checked(root, q.Destination, true)
 		if targetErr != nil || target != nil {
 			return Result{}, errors.New("destination unavailable")
@@ -289,8 +287,20 @@ func (e *Engine) execute(ctx context.Context, q Request) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	if err = syncRoot(root); err != nil {
-		return Result{}, err
+	parents := []string{path.Dir(q.Path)}
+	if q.Action == "move" {
+		parents = append(parents, path.Dir(q.Destination))
+	}
+	for _, name := range parents {
+		parent, err := root.OpenRoot(name)
+		if err != nil {
+			return Result{}, err
+		}
+		err = syncRoot(parent)
+		parent.Close()
+		if err != nil {
+			return Result{}, err
+		}
 	}
 	return Result{}, nil
 }
@@ -306,7 +316,8 @@ func backup(root *os.Root, p string) error {
 	if err != nil || !info.IsDir() {
 		return errors.New("invalid history")
 	}
-	f, err := root.OpenFile(".amuos-history/"+security.Token(), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	id := security.Token()
+	f, err := root.OpenFile(".amuos-history/"+id+".data", os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
 		return err
 	}
@@ -314,5 +325,25 @@ func backup(root *os.Root, p string) error {
 	if err == nil {
 		err = f.Sync()
 	}
-	return errors.Join(err, f.Close())
+	if err = errors.Join(err, f.Close()); err != nil {
+		return err
+	}
+	manifest, _ := json.Marshal(map[string]string{"path": p, "data": id + ".data"})
+	f, err = root.OpenFile(".amuos-history/"+id+".json", os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(manifest)
+	if err == nil {
+		err = f.Sync()
+	}
+	if err = errors.Join(err, f.Close()); err != nil {
+		return err
+	}
+	history, err := root.OpenRoot(".amuos-history")
+	if err != nil {
+		return err
+	}
+	defer history.Close()
+	return syncRoot(history)
 }

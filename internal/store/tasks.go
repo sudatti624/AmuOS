@@ -10,7 +10,7 @@ import (
 	"github.com/sudatti624/AmuOS/internal/security"
 )
 
-// Task is a persisted request for read-only work on one host.
+// Task is a persisted request for work on one host.
 type Task struct {
 	ID         string `json:"id"`
 	Operation  string `json:"operation"`
@@ -120,6 +120,9 @@ func (s *Store) createTask(ctx context.Context, token, csrf, hostID, operation, 
 			}
 			if err != nil {
 				return err
+			}
+			if original.Operation == "file" {
+				return ErrDenied
 			}
 			hostID, operation = original.HostID, original.Operation
 		}
@@ -297,7 +300,14 @@ func (s *Store) changeTask(ctx context.Context, token, csrf, id, action string, 
 		if err != nil {
 			return err
 		}
-		if !p.Allows(permission, task.HostID) {
+		allowed := p.Allows(permission, task.HostID)
+		if task.Operation == "file" && action == "task.cancel" {
+			_, allowed, err = fileDelivery(tx, task.ID, task.HostID, p.ID)
+			if err != nil {
+				return err
+			}
+		}
+		if !allowed {
 			rejected = ErrDenied
 			return audit(ctx, tx, now, p.ID, action, task.ID, task.HostID, "denied", "forbidden")
 		}

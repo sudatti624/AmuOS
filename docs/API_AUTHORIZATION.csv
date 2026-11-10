@@ -62,3 +62,7 @@ GET,/users,static,none,none,no,none
 GET,/settings,static,none,none,no,none
 GET,/assets/*,static,none,none,no,none
 GET,/favicon.png,static,none,none,no,none
+GET,/api/v1/hosts/{id}/file-roots,session,file.read,host_directory,no,none
+PUT,/api/v1/hosts/{id}/file-roots,session,host.manage,host,yes,none
+POST,/api/v1/hosts/{id}/files,session,file.read_or_write,host_directory,yes,none
+GET,/api/v1/tasks/{id}/file-result,session,file.read_or_write,requester_host_directory,no,none

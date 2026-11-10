@@ -2,6 +2,7 @@ package controlplane
 
 import (
 	"github.com/go-chi/chi/v5"
+	"github.com/sudatti624/AmuOS/internal/fileops"
 	"github.com/sudatti624/AmuOS/internal/metrics"
 	"github.com/sudatti624/AmuOS/internal/store"
 	"net/http"
@@ -24,7 +25,7 @@ func (s *Server) pollTasks(w http.ResponseWriter, r *http.Request) {
 }
 func (s *Server) taskResult(w http.ResponseWriter, r *http.Request) {
 	var body store.TaskResult
-	if !s.decode(w, r, &body) {
+	if !s.decodeLimit(w, r, &body, fileops.MaxBody) {
 		return
 	}
 	if body.ID != chi.URLParam(r, "id") {

@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/sudatti624/AmuOS/internal/agentca"
+	"github.com/sudatti624/AmuOS/internal/fileops"
 	"github.com/sudatti624/AmuOS/internal/metrics"
 	"github.com/sudatti624/AmuOS/internal/security"
 )
@@ -42,7 +43,7 @@ const (
 	// Half the server limit keeps a batch of long numbers well under 64 KiB.
 	sampleBatch = metrics.MaxBatch / 2
 	maxBackoff  = 60 * time.Second
-	maxResponse = 256 * 1024
+	maxResponse = fileops.MaxBody
 )
 
 // ErrRejected means the Control Plane no longer trusts this Agent (revoked,
@@ -50,7 +51,9 @@ const (
 var ErrRejected = errors.New("the control plane rejected this agent's credential; enroll again")
 
 type Config struct {
-	StateDir string
+	FileRoots      map[string]fileops.RootConfig
+	ProtectedPaths []string
+	StateDir       string
 	// Server is the browser/enrollment endpoint, e.g. https://cp.example:8443.
 	Server string
 	// AgentServer is the mTLS endpoint, e.g. https://cp.example:9443.
@@ -70,6 +73,7 @@ type identity struct {
 }
 
 type Agent struct {
+	files *fileops.Engine
 	cfg   Config
 	clock func() time.Time
 
@@ -102,7 +106,11 @@ func New(cfg Config) (*Agent, error) {
 	if cfg.Collector == nil {
 		cfg.Collector = NewCollector()
 	}
-	return &Agent{cfg: cfg, clock: time.Now, runID: security.Token(), supported: true, interval: defaultInterval}, nil
+	files, err := fileops.New(cfg.FileRoots, append(cfg.ProtectedPaths, cfg.StateDir)...)
+	if err != nil {
+		return nil, err
+	}
+	return &Agent{files: files, cfg: cfg, clock: time.Now, runID: security.Token(), supported: true, interval: defaultInterval}, nil
 }
 
 func (a *Agent) path(name string) string { return filepath.Join(a.cfg.StateDir, name) }
@@ -483,6 +491,9 @@ func (a *Agent) capabilities() []string {
 		caps := []string{"heartbeat", "metrics", "host_info"}
 		if !a.tasksBlocked {
 			caps = append(caps, "tasks")
+			if a.files.Enabled() {
+				caps = append(caps, "files_v1")
+			}
 		}
 		return caps
 	}

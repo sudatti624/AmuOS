@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/sudatti624/AmuOS/internal/fileops"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -106,7 +107,7 @@ func (a *Agent) scanTaskJournal(ctx context.Context) error {
 			warn("record metadata unreadable")
 			continue
 		}
-		if info.Size() > 64*1024 {
+		if info.Size() > fileops.MaxBody {
 			warn("record exceeds size limit")
 			continue
 		}
@@ -125,7 +126,7 @@ func (a *Agent) scanTaskJournal(ctx context.Context) error {
 			warn("invalid JSON")
 			continue
 		}
-		if !safeTaskID(local.Delivery.ID) || name != local.Delivery.ID+".json" || local.Delivery.Operation != "collect" || len(local.Delivery.InputHash) != 64 || local.Delivery.AttemptID == "" || local.TerminalAt < 0 || local.AcknowledgedAt < 0 || (local.Outcome != "" && local.Outcome != "unknown" && local.Outcome != "succeeded" && local.Outcome != "failed") || (local.Acknowledged && local.Outcome == "") {
+		if !safeTaskID(local.Delivery.ID) || name != local.Delivery.ID+".json" || (local.Delivery.Operation != "collect" && local.Delivery.Operation != "file") || len(local.Delivery.InputHash) != 64 || local.Delivery.AttemptID == "" || local.TerminalAt < 0 || local.AcknowledgedAt < 0 || (local.Outcome != "" && local.Outcome != "unknown" && local.Outcome != "succeeded" && local.Outcome != "failed") || (local.Acknowledged && local.Outcome == "") {
 			warn("invalid record fields")
 			continue
 		}

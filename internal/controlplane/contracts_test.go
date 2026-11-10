@@ -95,6 +95,10 @@ func TestAuthorizationContractCoversEveryRoute(t *testing.T) {
 		body := map[string]any{"name": "fixture"}
 		path := strings.ReplaceAll(row[1], "{id}", owner.UserID)
 		switch {
+		case strings.HasSuffix(path, "/file-roots"):
+			body = map[string]any{"roots": []any{}}
+		case strings.HasSuffix(path, "/files"):
+			body = map[string]any{"root": "work", "action": "list", "path": "."}
 		case strings.HasSuffix(path, "/enabled"), strings.HasSuffix(path, "/owner"):
 			body = map[string]any{"enabled": true}
 		case strings.HasSuffix(path, "/members"):

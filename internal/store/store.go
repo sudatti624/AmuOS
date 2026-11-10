@@ -28,7 +28,7 @@ var (
 //go:embed migrations/*.sql
 var migrations embed.FS
 
-var migrationNames = []string{"001_foundation.sql", "002_accounts.sql", "003_authorization.sql", "004_audit_requests.sql", "005_audit_retention.sql", "006_audit_maintenance.sql", "007_idempotency.sql", "008_local_maintenance.sql", "009_tasks.sql", "010_agents.sql", "011_monitoring.sql", "012_task_delivery.sql", "013_task_retry.sql"}
+var migrationNames = []string{"001_foundation.sql", "002_accounts.sql", "003_authorization.sql", "004_audit_requests.sql", "005_audit_retention.sql", "006_audit_maintenance.sql", "007_idempotency.sql", "008_local_maintenance.sql", "009_tasks.sql", "010_agents.sql", "011_monitoring.sql", "012_task_delivery.sql", "013_task_retry.sql", "014_files.sql"}
 
 type Store struct{ db *sql.DB }
 type Host struct {
