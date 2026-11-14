@@ -383,7 +383,7 @@ export function HostDetailPage() {
             )}
           </TabsContent>
           <TabsContent value="files" forceMount className="mt-6">
-            <HostFiles key={host.id} hostId={host.id} />
+            <HostFiles key={host.id} hostId={host.id} visible={section === "files"} />
           </TabsContent>
           <TabsContent value="apps" forceMount className="mt-6">
             <HostApplications

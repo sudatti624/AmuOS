@@ -54,9 +54,7 @@ test("files can be uploaded, edited, moved, downloaded and deleted through a rea
   await files.getByText("公開ディレクトリの権限設定", { exact: true }).click();
   await files.getByLabel("ルート名", { exact: true }).fill("work");
   await files.getByRole("button", { name: "ルートの権限を保存" }).click();
-  await expect(files.getByLabel("許可ディレクトリ")).toHaveValue("work");
-  await files.getByRole("button", { name: "一覧を取得" }).click();
-  await expect(files.getByRole("button", { name: "一覧を取得" })).toBeEnabled({ timeout: 40_000 });
+  await expect(files.getByRole("button", { name: "一覧を更新" })).toBeEnabled({ timeout: 40_000 });
   await files.getByLabel("ファイルをアップロード", { exact: false }).setInputFiles({
     name: "hello.txt",
     mimeType: "text/plain",
@@ -69,29 +67,38 @@ test("files can be uploaded, edited, moved, downloaded and deleted through a rea
   await server.restart();
   await server.restartAgent();
   await page.reload();
-  await expect(files.getByLabel("許可ディレクトリ")).toHaveValue("work");
-  await files.getByRole("button", { name: "一覧を取得" }).click();
   await expect(files.getByRole("button", { name: "hello.txt", exact: true })).toBeVisible({
     timeout: 40_000,
   });
   await files.getByRole("button", { name: "hello.txt", exact: true }).click();
-  await expect(files.getByRole("button", { name: "テキストを開く" })).toBeEnabled({
-    timeout: 40_000,
-  });
-  await files.getByRole("button", { name: "テキストを開く" }).click();
   await expect(files.getByLabel("UTF-8テキスト")).toHaveValue("private file content", {
     timeout: 40_000,
   });
   await files.getByLabel("UTF-8テキスト").fill("edited private content");
   await page.screenshot({ path: test.info().outputPath("file-manager.png"), fullPage: true });
   await files.getByRole("button", { name: "変更を保存" }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "実行", exact: true }).click();
-  await expect(files.getByRole("button", { name: "一覧を取得" })).toBeEnabled({ timeout: 40_000 });
-  await files.getByRole("button", { name: "hello.txt", exact: true }).click();
-  await expect(files.getByLabel("移動先・変更後の相対パス")).toBeEnabled({ timeout: 40_000 });
-  await files.getByLabel("移動先・変更後の相対パス").fill("renamed.txt");
-  await files.getByRole("button", { name: "名前変更・移動", exact: true }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "実行", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "保存", exact: true }).click();
+  await expect(files.getByRole("button", { name: "変更を保存" })).toBeDisabled({ timeout: 40_000 });
+  await files.getByRole("button", { name: "名前変更", exact: true }).click();
+  await page.getByRole("dialog").getByLabel("変更後の名前").fill("renamed.txt");
+  await page.getByRole("dialog").getByRole("button", { name: "変更", exact: true }).click();
+  await expect(files.getByRole("button", { name: "renamed.txt", exact: true })).toBeVisible({
+    timeout: 40_000,
+  });
+  await files.getByRole("button", { name: "新しいフォルダ", exact: true }).click();
+  await page.getByRole("dialog").getByLabel("名前", { exact: true }).fill("archive");
+  await page.getByRole("dialog").getByRole("button", { name: "作成", exact: true }).click();
+  await expect(files.getByRole("button", { name: "archive", exact: true })).toBeVisible({
+    timeout: 40_000,
+  });
+  await files.getByRole("checkbox", { name: "renamed.txt を選択", exact: true }).check();
+  await files.getByRole("button", { name: "移動", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "archive", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "ここに移動" }).click();
+  await expect(files.getByRole("button", { name: "renamed.txt", exact: true })).toHaveCount(0, {
+    timeout: 40_000,
+  });
+  await files.getByRole("button", { name: "archive", exact: true }).click();
   await expect(files.getByRole("button", { name: "renamed.txt", exact: true })).toBeVisible({
     timeout: 40_000,
   });
@@ -105,9 +112,19 @@ test("files can be uploaded, edited, moved, downloaded and deleted through a rea
   expect(download.suggestedFilename()).toBe("renamed.txt");
   expect(await readFile((await download.path())!, "utf8")).toBe("edited private content");
   await files.getByRole("button", { name: "削除", exact: true }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "実行", exact: true }).click();
-  await expect(files.getByRole("button", { name: "一覧を取得" })).toBeEnabled({ timeout: 40_000 });
+  await page.getByRole("alertdialog").getByRole("button", { name: "削除", exact: true }).click();
+  await expect(files.getByRole("button", { name: "一覧を更新" })).toBeEnabled({ timeout: 40_000 });
   await expect(files.getByRole("button", { name: "renamed.txt", exact: true })).toHaveCount(0);
+  await files.getByRole("button", { name: "上の階層へ", exact: true }).click();
+  await expect(files.getByRole("checkbox", { name: "archive を選択", exact: true })).toBeVisible({
+    timeout: 40_000,
+  });
+  await files.getByRole("checkbox", { name: "archive を選択", exact: true }).check();
+  await files.getByRole("button", { name: "削除", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "削除", exact: true }).click();
+  await expect(files.getByRole("button", { name: "archive", exact: true })).toHaveCount(0, {
+    timeout: 40_000,
+  });
   const audit = await (await page.request.get(`${server.origin}/api/v1/audit`)).text();
   expect(audit).toContain("file.request");
   expect(audit).not.toContain("private file content");
