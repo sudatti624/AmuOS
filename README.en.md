@@ -41,19 +41,19 @@ File management lets you list, inspect, transfer, create, edit UTF-8 text, renam
 - [License](#license)
 
 <p align="center">
-  <img src="docs/images/files.png" alt="File management in v0.6, showing an allowed directory and UTF-8 text editing with sample data" width="1000">
+  <img src="docs/images/files.png" alt="File management in the development version, showing an allowed directory and UTF-8 text editing with sample data" width="1000">
   <br>
-  <sub>An example of file management in v0.6, captured during development. Files, host names, and values are sample data, not real environment information or measurements.</sub>
+  <sub>An example of file management in the development version, captured during development. The layout and appearance differ from the published v0.6.0. Files, host names, and values are sample data, not real environment information or measurements.</sub>
 </p>
 
 <details>
 <summary>View host details, monitoring, host list, and overview screenshots</summary>
 
-These screenshots were also captured during development using the v0.6 UI with sample data. The display varies by version and configuration.
+These screenshots were also captured using the development UI with sample data. The display varies by version and configuration.
 
-**Host details** — View monitoring values and files in an allowed directory on the same screen.
+**Host details** — View monitoring values and history. Files, application registrations, tasks, and service status are on separate tabs.
 
-<img src="docs/images/host-detail.png" alt="Host details with sample CPU and memory metrics and a file listing in an allowed directory" width="1000">
+<img src="docs/images/host-detail.png" alt="Host details with sample CPU and memory metrics and history charts" width="1000">
 
 **Monitoring history** — CPU, memory, disk, and network trends.
 
