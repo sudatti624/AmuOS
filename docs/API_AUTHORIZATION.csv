@@ -66,3 +66,7 @@ GET,/api/v1/hosts/{id}/file-roots,session,file.read,host_directory,no,none
 PUT,/api/v1/hosts/{id}/file-roots,session,host.manage,host,yes,none
 POST,/api/v1/hosts/{id}/files,session,file.read_or_write,host_directory,yes,none
 GET,/api/v1/tasks/{id}/file-result,session,file.read_or_write,requester_host_directory,no,none
+GET,/api/v1/hosts/{id}/applications,session,application.read,host_application,no,none
+GET,/api/v1/hosts/{id}/applications/{name},session,application.read,host_application,no,none
+PUT,/api/v1/hosts/{id}/applications/{name},session,host.manage,host,yes,none
+DELETE,/api/v1/hosts/{id}/applications/{name},session,host.manage,host,yes,none

@@ -221,3 +221,16 @@ Requestは`root`（alias）、`action`、`path`（ルートからの相対パス
 一覧/情報/読取りは、name/directory/size/modified/etagを返す。AgentのOSエラーや絶対パスは返さず、実行失敗は`error:file_operation_failed`とタスクfailedで示す。テキストとして開けない場合はダウンロードを使う。本文は監査へ保存しない。
 
 Agentのheartbeatに`files_v1`を追加する。ローカルルートが有効でタスクを受領できるときだけ送信する。`tasks/poll`のfile操作は`operation:file`と`file:Request`を含み、input_hashはRequestの正規JSONのSHA-256。Agentは一致を確認してからジャーナルへ保存し、受領確認後に実行する。受領確認時にも依頼者のルート権限を確認する。結果送信は既存TaskResultに`file:Result`を加える。同じ結果の再送は再実行しない。汎用retryはfileタスクを拒否する。
+
+## アプリ登録（v0.7開発中）
+
+登録情報のみを扱う。実行・デプロイは未実装。契約・制約・復元は[APPLICATIONS.md](APPLICATIONS.md)、判断はADR-028を参照。変更にはOrigin・CSRFが必要。
+
+| Method / Path | 本文・結果 | 認可 |
+|---|---|---|
+| GET `/api/v1/hosts/{id}/applications` | 閲覧できる有効な登録を名前順に`items`へ返す | ホストとアプリの閲覧範囲 |
+| GET `/api/v1/hosts/{id}/applications/{name}` | 登録情報を返す。範囲外・解除済みは404 | ホストとアプリの閲覧範囲 |
+| PUT `/api/v1/hosts/{id}/applications/{name}` | `{"expected_revision":0,"config":{"runtime":"python","read_roles":["Admin","Viewer"],"operate_roles":[]}}`。200と登録情報 | ホスト管理 |
+| DELETE `/api/v1/hosts/{id}/applications/{name}` | `{"expected_revision":1}`。登録解除し200と解除後の登録情報 | ホスト管理 |
+
+登録情報は`host_id/name/config/revision/archived/created_at/updated_at`を持つ。PUTの期待版0は新規登録、既存変更は取得済みの版を指定する。変更成功時に版が1増える。同じ期待版・内容の直後の再送は版を増やさず200。競合、同名の別入力、解除済み名の再利用は409。DELETEの期待版は1以上。同じ期待版の直後の解除再送は200。リソースのPUT/DELETEとして冪等性を持たせ、Idempotency-Keyは使用しない。不明フィールドは400。

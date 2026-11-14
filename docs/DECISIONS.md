@@ -235,3 +235,12 @@ The v0.5 foundation gate is complete. File management targets Linux and Windows.
 - Receive the whole input before execution; sync temporary files before publication. Back up regular files before edit/delete in a hidden host directory. Unknown outcomes require inspection. Host data backups are separate from management database backups.
 
 Schema 14 rebuilds the task operation constraint transactionally while preserving existing tasks and attempts. Implementation does not by itself establish that the v0.6 validation gate passed.
+
+## ADR-028: Application registry before Managed Service execution (2026-11-14)
+
+The v0.6 file-management gate is complete. Begin specification §8/§16 Phase 4 with a metadata-only application registry; [APPLICATIONS.md](APPLICATIONS.md) defines its contract. This is an initial v0.7 increment, not the completed deployment feature.
+
+- Identify each registration by host and immutable name. Only host managers may change metadata. Filter list/detail by the application's read roles and a matching host grant; managers retain visibility. Reserve operation roles without exposing execution endpoints.
+- Use revision-checked PUT and archive operations. Identical immediate retries return the existing revision. Preserve archived names as tombstones to prevent delayed requests from recreating a removed resource. Bound active and total records per host.
+- Store metadata and host-scoped before/after audit in one transaction. Schema 15 adds the registry without changing task constraints, existing task states, or Agent messages. Include its row counts in backup validation and preserve registrations through restart and restore.
+- Runtime names are declarations only. Do not accept command, environment, secret, or arbitrary service-unit fields in this increment. No Agent capability or privileged Adapter is added. Design and verify isolation, execution authorization, encrypted secrets, durable mutation tasks and deployment recovery before enabling those operations.

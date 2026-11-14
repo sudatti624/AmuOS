@@ -16,7 +16,7 @@ import (
 func SchemaVersion() int { return len(migrationNames) }
 
 // backupTables are the tables whose row counts a backup manifest records.
-var backupTables = []string{"users", "groups", "memberships", "grants", "sessions", "hosts", "invitations", "invitation_grants", "bootstrap", "audit_events", "audit_settings", "idempotency_records", "local_maintenance", "tasks", "agents", "agent_credentials", "enrollments", "enrollment_challenges", "monitoring_settings", "host_info", "metric_samples", "metric_rollups", "task_attempts", "systemd_states", "file_roots", "file_tasks"}
+var backupTables = []string{"users", "groups", "memberships", "grants", "sessions", "hosts", "invitations", "invitation_grants", "bootstrap", "audit_events", "audit_settings", "idempotency_records", "local_maintenance", "tasks", "agents", "agent_credentials", "enrollments", "enrollment_challenges", "monitoring_settings", "host_info", "metric_samples", "metric_rollups", "task_attempts", "systemd_states", "file_roots", "file_tasks", "applications"}
 
 func BackupTables() []string { return append([]string(nil), backupTables...) }
 

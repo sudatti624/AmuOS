@@ -95,6 +95,12 @@ func TestAuthorizationContractCoversEveryRoute(t *testing.T) {
 		body := map[string]any{"name": "fixture"}
 		path := strings.ReplaceAll(row[1], "{id}", owner.UserID)
 		switch {
+		case strings.Contains(path, "/applications/"):
+			if row[0] == "DELETE" {
+				body = map[string]any{"expected_revision": 1}
+			} else {
+				body = map[string]any{"expected_revision": 0, "config": map[string]any{"runtime": "python", "read_roles": []string{"Admin"}, "operate_roles": []string{"Admin"}}}
+			}
 		case strings.HasSuffix(path, "/file-roots"):
 			body = map[string]any{"roots": []any{}}
 		case strings.HasSuffix(path, "/files"):
