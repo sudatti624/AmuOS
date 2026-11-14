@@ -294,7 +294,7 @@ export const api = {
   put: <T>(path: string, body: unknown, options?: Omit<RequestOptions, "body">) =>
     request<T>("PUT", path, { ...options, body }),
   patch: <T>(path: string, body: unknown) => request<T>("PATCH", path, { body }),
-  delete: (path: string) => request<void>("DELETE", path),
+  delete: (path: string, body?: unknown) => request<void>("DELETE", path, { body }),
 };
 
 const messages: Record<string, string> = {

@@ -1,4 +1,5 @@
 import { HostFiles } from "./host-files";
+import { HostApplications } from "./host-applications";
 import { SystemdState } from "./systemd-state";
 import { HostTasks } from "./host-tasks";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
@@ -322,6 +323,11 @@ export function HostDetailPage() {
           )}
           {host.latest && <CurrentValues latest={host.latest} info={host.info} />}
           <HostFiles key={host.id} hostId={host.id} />
+          <HostApplications
+            key={`apps-${host.id}`}
+            hostId={host.id}
+            mutable={host.state !== "revoked"}
+          />
           <HostTasks host={host} onCollected={refresh} />
           <SystemdState key={collected} hostId={host.id} windows={host.info?.os === "Windows"} />
           {host.info && (
