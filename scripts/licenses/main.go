@@ -18,6 +18,7 @@ import (
 func run() error {
 	out := flag.String("out", "THIRD_PARTY_LICENSES.md", "output file")
 	web := flag.String("web", "internal/webui/static/app/.vite/license.md", "license file written by the web build")
+	fonts := flag.String("fonts", "web/node_modules/@fontsource-variable", "directory of the bundled font packages")
 	flag.Parse()
 
 	var b bytes.Buffer
@@ -66,6 +67,21 @@ func run() error {
 	}
 	b.WriteString("\n---\n\n## Web UI dependencies\n\n")
 	b.Write(webLicenses)
+
+	// The web build copies font files as assets, so its license report does
+	// not list them. A font without its license must not ship.
+	for _, name := range []string{"geist", "geist-mono"} {
+		font, err := licenseFiles(filepath.Join(*fonts, name))
+		if err != nil {
+			return fmt.Errorf("font licenses (install web/ dependencies first): %w", err)
+		}
+		if len(font) == 0 {
+			return fmt.Errorf("no license file found for font %s", name)
+		}
+		if err = section(&b, "Web UI font: @fontsource-variable/"+name, font); err != nil {
+			return err
+		}
+	}
 	return os.WriteFile(*out, b.Bytes(), 0o644)
 }
 

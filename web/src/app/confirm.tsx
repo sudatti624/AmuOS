@@ -43,7 +43,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
         {options && (
           <AlertDialogContent>
             <div className="flex flex-col gap-2">
-              <AlertDialogTitle className="text-lg font-semibold">{options.title}</AlertDialogTitle>
+              <AlertDialogTitle className="text-base font-medium">{options.title}</AlertDialogTitle>
               <AlertDialogDescription className="text-sm whitespace-pre-line text-muted-foreground">
                 {options.description}
               </AlertDialogDescription>

@@ -10,7 +10,12 @@ export function Table({ className, ...props }: ComponentProps<"table">) {
 }
 
 export function TableHeader({ className, ...props }: ComponentProps<"thead">) {
-  return <thead className={cn("bg-muted/50 [&_tr]:border-b", className)} {...props} />;
+  return (
+    <thead
+      className={cn("bg-muted/40 [&_tr]:border-b [&_tr]:hover:bg-transparent", className)}
+      {...props}
+    />
+  );
 }
 
 export function TableBody({ className, ...props }: ComponentProps<"tbody">) {
@@ -28,7 +33,7 @@ export function TableHead({ className, ...props }: ComponentProps<"th">) {
     <th
       scope="col"
       className={cn(
-        "h-10 px-3 text-left align-middle text-xs font-medium whitespace-nowrap text-muted-foreground",
+        "h-9 px-4 text-left align-middle text-xs font-normal whitespace-nowrap text-muted-foreground",
         className,
       )}
       {...props}
@@ -37,13 +42,13 @@ export function TableHead({ className, ...props }: ComponentProps<"th">) {
 }
 
 export function TableCell({ className, ...props }: ComponentProps<"td">) {
-  return <td className={cn("px-3 py-2.5 align-middle", className)} {...props} />;
+  return <td className={cn("px-4 py-2.5 align-middle", className)} {...props} />;
 }
 
 export function TableEmpty({ colSpan, children }: { colSpan: number; children: string }) {
   return (
     <tr>
-      <td colSpan={colSpan} className="px-3 py-8 text-center text-sm text-muted-foreground">
+      <td colSpan={colSpan} className="px-4 py-8 text-center text-sm text-muted-foreground">
         {children}
       </td>
     </tr>

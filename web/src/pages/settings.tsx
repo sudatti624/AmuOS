@@ -41,7 +41,6 @@ function ThemeCard() {
                 setTheme(option.value);
                 saveTheme(option.value);
               }}
-              className="accent-primary"
             />
             {option.label}
           </label>

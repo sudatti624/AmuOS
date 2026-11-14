@@ -34,11 +34,14 @@ function niceMax(value: number) {
   return 10 * magnitude;
 }
 
-const height = 170;
+const baseHeight = 168;
 const left = 68;
 const right = 8;
 const top = 8;
 const bottom = 24;
+
+// The first series leads in the brand color; a comparison stays neutral.
+export const seriesColors = ["var(--brand)", "var(--chart-quiet)"];
 
 export function LineChart({
   title,
@@ -49,6 +52,7 @@ export function LineChart({
   series,
   format,
   max,
+  height = baseHeight,
 }: {
   title: string;
   times: number[];
@@ -59,6 +63,7 @@ export function LineChart({
   format: (value: number) => string;
   // A fixed scale, such as 100 for percentages.
   max?: number;
+  height?: number;
 }) {
   const titleId = useId();
   const [hover, setHover] = useState<number | null>(null);
@@ -102,19 +107,19 @@ export function LineChart({
   };
 
   return (
-    <figure className="flex flex-col gap-2 rounded-lg border bg-card p-4" aria-labelledby={titleId}>
-      <figcaption className="flex flex-wrap items-baseline justify-between gap-2">
+    <figure className="flex flex-col gap-3 rounded-xl border bg-card p-4" aria-labelledby={titleId}>
+      <figcaption className="flex flex-col gap-1">
         <span id={titleId} className="text-sm font-medium">
           {title}
         </span>
-        <span className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-          {shown !== null && <span>{formatTime(times[shown])}</span>}
+        <span className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground tabular-nums">
+          {shown !== null && <span className="stamp">{formatTime(times[shown])}</span>}
           {series.map((s) => {
             const v = shown === null ? null : s.values[shown];
             return (
-              <span key={s.label} className="flex items-center gap-1">
+              <span key={s.label} className="flex items-center gap-1.5">
                 <span
-                  className="inline-block size-2 rounded-full"
+                  className="inline-block h-0.5 w-3 rounded-full"
                   style={{ background: s.color }}
                 />
                 {s.label} {v === null || v === undefined ? "データなし" : format(v)}
@@ -131,7 +136,7 @@ export function LineChart({
         ) : (
           <svg
             viewBox={`0 0 ${width} ${height}`}
-            className="h-auto w-full touch-none select-none"
+            className="h-auto w-full touch-none font-mono select-none"
             role="img"
             aria-label={`${title}のグラフ`}
             onPointerMove={move}
@@ -151,8 +156,8 @@ export function LineChart({
                   x={left - 6}
                   y={y(yMax * f) + 4}
                   textAnchor="end"
-                  fontSize="12"
-                  fill="var(--muted-foreground)"
+                  fontSize="11"
+                  fill="var(--subtle)"
                 >
                   {format(yMax * f)}
                 </text>
@@ -164,41 +169,44 @@ export function LineChart({
                 x={x(t)}
                 y={height - 6}
                 textAnchor={i === 0 ? "start" : i === 2 ? "end" : "middle"}
-                fontSize="12"
-                fill="var(--muted-foreground)"
+                fontSize="11"
+                fill="var(--subtle)"
               >
                 {timeLabel(t)}
               </text>
             ))}
-            {series.map((s) =>
-              segments(times, s.values, step).map((points, i) =>
-                points.length === 1 ? (
-                  <circle
-                    key={`${s.label}-${i}`}
-                    cx={x(points[0].t)}
-                    cy={y(points[0].v)}
-                    r="2"
-                    fill={s.color}
-                  />
-                ) : (
-                  <polyline
-                    key={`${s.label}-${i}`}
-                    points={points.map((p) => `${x(p.t)},${y(p.v)}`).join(" ")}
-                    fill="none"
-                    stroke={s.color}
-                    strokeWidth="1.5"
-                    strokeLinejoin="round"
-                  />
+            {/* Drawn last to first, so the leading series stays on top. */}
+            {[...series]
+              .reverse()
+              .map((s) =>
+                segments(times, s.values, step).map((points, i) =>
+                  points.length === 1 ? (
+                    <circle
+                      key={`${s.label}-${i}`}
+                      cx={x(points[0].t)}
+                      cy={y(points[0].v)}
+                      r="2"
+                      fill={s.color}
+                    />
+                  ) : (
+                    <polyline
+                      key={`${s.label}-${i}`}
+                      points={points.map((p) => `${x(p.t)},${y(p.v)}`).join(" ")}
+                      fill="none"
+                      stroke={s.color}
+                      strokeWidth="1.5"
+                      strokeLinejoin="round"
+                    />
+                  ),
                 ),
-              ),
-            )}
+              )}
             {hover !== null && (
               <line
                 x1={x(times[hover])}
                 x2={x(times[hover])}
                 y1={top}
                 y2={top + plotHeight}
-                stroke="var(--muted-foreground)"
+                stroke="var(--subtle)"
                 strokeWidth="1"
               />
             )}

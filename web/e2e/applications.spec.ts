@@ -37,6 +37,7 @@ test("application registry persists, rejects stale updates and filters app permi
   const host = await created.json();
   const base = `${server.origin}/api/v1/hosts/${host.id}/applications`;
   await page.goto(`${server.origin}/hosts/${host.id}`);
+  await page.getByRole("tab", { name: "アプリ", exact: true }).click();
   const apps = page.getByRole("region", { name: "アプリ登録", exact: true });
   await apps.getByLabel("アプリ名（英小文字で開始）").fill("example");
   await apps.getByLabel("Viewerに登録情報の閲覧を許可").check();
@@ -79,7 +80,7 @@ test("application registry persists, rejects stale updates and filters app permi
   });
   expect(accepted.status()).toBe(201);
   await login(viewer, server.origin, "app-viewer", "application viewer passphrase");
-  await viewer.goto(`${server.origin}/hosts/${host.id}`);
+  await viewer.goto(`${server.origin}/hosts/${host.id}?tab=apps`);
   const visible = viewer.getByRole("region", { name: "アプリ登録", exact: true });
   await expect(visible.getByRole("cell", { name: "example", exact: true })).toBeVisible();
   await expect(visible.getByRole("button", { name: "設定", exact: true })).toHaveCount(0);

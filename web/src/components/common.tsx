@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { CircleAlertIcon, LoaderCircleIcon } from "lucide-react";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 
 export function PageHeader({
   title,
@@ -14,10 +15,63 @@ export function PageHeader({
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+        <h1 className="text-2xl leading-8 font-medium">{title}</h1>
         {description && <p className="text-sm text-muted-foreground">{description}</p>}
       </div>
-      {actions && <div className="flex gap-2">{actions}</div>}
+      {actions && <div className="flex shrink-0 gap-2">{actions}</div>}
+    </div>
+  );
+}
+
+const tones = {
+  success: "bg-success",
+  warning: "bg-warning",
+  destructive: "bg-destructive",
+  neutral: "bg-subtle",
+};
+
+// A state is a small dot and plain text; color stays in the dot.
+export function Status({
+  tone,
+  className,
+  children,
+}: {
+  tone: keyof typeof tones;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <span className={cn("inline-flex items-center gap-2 text-sm whitespace-nowrap", className)}>
+      <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", tones[tone])} />
+      {children}
+    </span>
+  );
+}
+
+export function Notice({ children }: { children: ReactNode }) {
+  return (
+    <p role="status" className="text-sm text-muted-foreground empty:hidden">
+      {children}
+    </p>
+  );
+}
+
+export function SectionHeader({
+  title,
+  description,
+  actions,
+}: {
+  title: string;
+  description?: ReactNode;
+  actions?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex min-w-0 flex-col gap-1">
+        <h2 className="text-base leading-6 font-medium">{title}</h2>
+        {description && <p className="max-w-3xl text-sm text-muted-foreground">{description}</p>}
+      </div>
+      {actions && <div className="flex shrink-0 gap-2">{actions}</div>}
     </div>
   );
 }

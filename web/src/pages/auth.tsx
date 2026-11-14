@@ -82,10 +82,10 @@ export function LoginPage() {
         </Button>
       </form>
       <div className="flex flex-col gap-1 text-sm text-muted-foreground">
-        <Link to="/invite" className="text-primary underline-offset-4 hover:underline">
+        <Link to="/invite" className="link">
           招待を受け取った方はこちら
         </Link>
-        <Link to="/setup" className="text-primary underline-offset-4 hover:underline">
+        <Link to="/setup" className="link">
           初回設定（最初のオーナーの作成）
         </Link>
       </div>
@@ -187,7 +187,7 @@ export function SetupPage() {
           オーナーを作成
         </Button>
       </form>
-      <Link to="/login" className="text-sm text-primary underline-offset-4 hover:underline">
+      <Link to="/login" className="link text-sm">
         ログイン画面へ戻る
       </Link>
     </AuthShell>
@@ -280,7 +280,7 @@ export function InvitePage() {
           アカウントを作成
         </Button>
       </form>
-      <Link to="/login" className="text-sm text-primary underline-offset-4 hover:underline">
+      <Link to="/login" className="link text-sm">
         ログイン画面へ戻る
       </Link>
     </AuthShell>

@@ -2,8 +2,7 @@ import { useCallback } from "react";
 import { RefreshCwIcon } from "lucide-react";
 import { useMe } from "@/app/session";
 import { useLoad } from "@/app/use-load";
-import { ErrorText, Loading, PageHeader } from "@/components/common";
-import { Badge } from "@/components/ui/badge";
+import { ErrorText, Loading, PageHeader, Status } from "@/components/common";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -73,9 +72,7 @@ export function ActivityPage() {
             )}
             {data?.events.map((event) => (
               <TableRow key={event.id} className="align-top">
-                <TableCell className="whitespace-nowrap tabular-nums">
-                  {formatTime(event.at)}
-                </TableCell>
+                <TableCell className="stamp whitespace-nowrap">{formatTime(event.at)}</TableCell>
                 <TableCell>
                   <code className="font-mono text-xs">{event.action}</code>
                 </TableCell>
@@ -83,9 +80,12 @@ export function ActivityPage() {
                 <TableCell>{name(event.target_id)}</TableCell>
                 <TableCell>
                   <div className="flex flex-col gap-1">
-                    <Badge variant={event.outcome === "success" ? "success" : "destructive"}>
+                    <Status
+                      tone={event.outcome === "success" ? "success" : "destructive"}
+                      className="font-mono text-xs"
+                    >
                       {event.outcome}
-                    </Badge>
+                    </Status>
                     {event.reason && (
                       <span className="text-xs text-muted-foreground">{event.reason}</span>
                     )}
@@ -94,7 +94,7 @@ export function ActivityPage() {
                 <TableCell className="min-w-48">
                   {hasDetails(event.details) || event.request_id ? (
                     <details>
-                      <summary className="cursor-pointer text-xs text-primary">表示</summary>
+                      <summary className="link cursor-pointer text-xs">表示</summary>
                       <div className="mt-2 flex flex-col gap-1">
                         {event.request_id && (
                           <span className="text-xs text-muted-foreground">

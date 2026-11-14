@@ -5,8 +5,7 @@ import { useConfirm } from "@/app/confirm";
 import { useMe } from "@/app/session";
 import { useNotify } from "@/app/notifications";
 import { useLoad } from "@/app/use-load";
-import { ErrorText, Field, Loading, PageHeader } from "@/components/common";
-import { Badge } from "@/components/ui/badge";
+import { ErrorText, Field, Loading, PageHeader, Status } from "@/components/common";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -199,18 +198,18 @@ function EnrollmentDialog({ host, onClose }: { host: Host; onClose: () => void }
 }
 
 export function AgentStatus({ host }: { host: Host }) {
-  if (host.state === "pending") return <Badge variant="warning">登録待ち</Badge>;
-  if (host.state === "revoked") return <Badge variant="destructive">失効</Badge>;
+  if (host.state === "pending") return <Status tone="neutral">登録待ち</Status>;
+  if (host.state === "revoked") return <Status tone="destructive">失効</Status>;
   const agent = host.agent;
-  if (!agent) return <Badge variant="secondary">{host.state}</Badge>;
+  if (!agent) return <Status tone="neutral">{host.state}</Status>;
   return (
     <div className="flex flex-col items-start gap-1">
       {agent.connected ? (
-        <Badge variant="success">接続中</Badge>
+        <Status tone="success">接続中</Status>
       ) : (
-        <Badge variant="warning">切断</Badge>
+        <Status tone="warning">切断</Status>
       )}
-      <span className="text-xs text-muted-foreground">
+      <span className="stamp">
         {agent.last_seen ? `最終受信 ${formatTime(agent.last_seen)}` : "まだ受信していません"}
         {agent.version && ` ・ Agent ${agent.version}`}
       </span>
@@ -302,8 +301,8 @@ export function HostsPage() {
               const manageable = canManageHost(me.grants, host.id);
               return (
                 <TableRow key={host.id}>
-                  <TableCell className="font-medium">
-                    <Link to={`/hosts/${host.id}`} className="underline-offset-4 hover:underline">
+                  <TableCell>
+                    <Link to={`/hosts/${host.id}`} className="link">
                       {host.name}
                     </Link>
                   </TableCell>
@@ -311,7 +310,7 @@ export function HostsPage() {
                     <AgentStatus host={host} />
                   </TableCell>
                   <TableCell>
-                    <code className="font-mono text-xs text-muted-foreground">{host.id}</code>
+                    <code className="stamp">{host.id}</code>
                   </TableCell>
                   {anyManageable && (
                     <TableCell>

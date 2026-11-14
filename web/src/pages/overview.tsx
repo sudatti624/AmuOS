@@ -2,12 +2,42 @@ import { useCallback } from "react";
 import { Link } from "react-router";
 import { useMe } from "@/app/session";
 import { useLoad } from "@/app/use-load";
-import { ErrorText, Loading, PageHeader } from "@/components/common";
-import { Badge } from "@/components/ui/badge";
+import { ErrorText, Loading, PageHeader, Status } from "@/components/common";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { api, type AuditEvent, type Host, type Items } from "@/lib/api";
 import { formatTime, grantLabel, roleDescriptions } from "@/lib/format";
 import { canReadAudit, canReadHosts } from "@/lib/permissions";
+
+// Counts by the same states the host list shows.
+function HostStates({ hosts }: { hosts: Host[] }) {
+  const count = (test: (host: Host) => boolean) => hosts.filter(test).length;
+  const states = [
+    {
+      label: "接続中",
+      tone: "success" as const,
+      value: count((h) => h.state === "active" && h.agent?.connected === true),
+    },
+    {
+      label: "切断",
+      tone: "warning" as const,
+      value: count((h) => h.state === "active" && h.agent?.connected === false),
+    },
+    { label: "登録待ち", tone: "neutral" as const, value: count((h) => h.state === "pending") },
+    { label: "失効", tone: "destructive" as const, value: count((h) => h.state === "revoked") },
+  ].filter((state) => state.value > 0);
+  return (
+    <ul className="flex flex-wrap gap-x-4 gap-y-1">
+      {states.map((state) => (
+        <li key={state.label}>
+          <Status tone={state.tone} className="text-xs text-muted-foreground">
+            {state.label}
+            <span className="text-foreground tabular-nums">{state.value}</span>
+          </Status>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 export function OverviewPage() {
   const me = useMe();
@@ -28,8 +58,8 @@ export function OverviewPage() {
     <>
       <PageHeader title="概要" description={`${me.username} としてログインしています。`} />
       {error && <ErrorText>{error}</ErrorText>}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className={readHosts ? "md:col-span-2" : "md:col-span-3"}>
           <CardHeader>
             <CardTitle>自分の権限</CardTitle>
             <CardDescription>
@@ -44,7 +74,7 @@ export function OverviewPage() {
             <ul className="grid gap-2">
               {me.grants.map((grant, index) => (
                 <li key={index} className="flex flex-col gap-0.5">
-                  <span className="text-sm font-medium">{grantLabel(grant, data?.hosts)}</span>
+                  <span className="text-sm">{grantLabel(grant, data?.hosts)}</span>
                   <span className="text-xs text-muted-foreground">
                     {roleDescriptions[grant.role]}
                   </span>
@@ -62,58 +92,56 @@ export function OverviewPage() {
             {loading ? (
               <Loading />
             ) : (
-              <div className="flex items-end justify-between">
-                <p className="text-3xl font-semibold tabular-nums">{data?.hosts.length ?? 0}</p>
-                <Link
-                  to="/hosts"
-                  className="text-sm text-primary underline-offset-4 hover:underline"
-                >
+              <>
+                <p className="text-3xl leading-none font-medium tabular-nums">
+                  {data?.hosts.length ?? 0}
+                </p>
+                {data && data.hosts.length > 0 && <HostStates hosts={data.hosts} />}
+                <Link to="/hosts" className="link mt-auto w-fit text-sm">
                   ホスト一覧を開く
                 </Link>
-              </div>
+              </>
             )}
           </Card>
         )}
         {readAudit && (
-          <Card className="md:col-span-2">
+          <Card className="md:col-span-3">
             <CardHeader>
               <CardTitle>最近のアクティビティ</CardTitle>
             </CardHeader>
             {loading ? (
               <Loading />
             ) : data && data.events.length > 0 ? (
-              <ul className="grid gap-2">
+              <ul className="grid gap-2.5">
                 {data.events.map((event) => (
                   <li
                     key={event.id}
                     className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm"
                   >
-                    <span className="text-muted-foreground tabular-nums">
-                      {formatTime(event.at)}
-                    </span>
+                    <span className="stamp w-36 shrink-0">{formatTime(event.at)}</span>
                     <code className="font-mono text-xs">{event.action}</code>
-                    <Badge variant={event.outcome === "success" ? "success" : "destructive"}>
+                    <Status
+                      tone={event.outcome === "success" ? "success" : "destructive"}
+                      className="ml-auto font-mono text-xs text-muted-foreground"
+                    >
                       {event.outcome}
-                    </Badge>
+                    </Status>
                   </li>
                 ))}
               </ul>
             ) : (
               <p className="text-sm text-muted-foreground">まだ記録がありません。</p>
             )}
-            <Link
-              to="/activity"
-              className="text-sm text-primary underline-offset-4 hover:underline"
-            >
+            <Link to="/activity" className="link w-fit text-sm">
               アクティビティをすべて見る
             </Link>
           </Card>
         )}
-        <Card className="md:col-span-2">
+        <Card className="md:col-span-3">
           <CardHeader>
             <CardTitle>このバージョンについて</CardTitle>
           </CardHeader>
-          <p className="text-sm text-muted-foreground">
+          <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
             AmuOSは開発途中です。ユーザー・グループ・権限の管理、Agentによるホスト情報・監視値の収集と履歴、タスク、監査ログの確認ができます。ファイル管理は、Agentで明示的に公開したディレクトリで利用できます。アプリのデプロイ・コンテナ・VM管理は今後の実装予定です。
           </p>
         </Card>

@@ -65,6 +65,7 @@ test("a real Agent reconnects after an outage and restart, then is revoked and d
   await expect(page.getByRole("tab", { name: "30日" })).toHaveAttribute("aria-selected", "true");
 
   // The Agent polls for tasks and reports the native collector's result.
+  await page.getByRole("tab", { name: "タスク", exact: true }).click();
   await page.getByRole("button", { name: "今すぐ収集" }).click();
   const outcome = ["linux", "win32"].includes(process.platform) ? "成功" : "失敗";
   await expect(page.getByText(outcome, { exact: true })).toBeVisible({ timeout: 40_000 });

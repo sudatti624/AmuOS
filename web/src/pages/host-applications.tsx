@@ -2,9 +2,9 @@ import { useCallback, useState } from "react";
 import { useMe } from "@/app/session";
 import { useConfirm } from "@/app/confirm";
 import { useLoad } from "@/app/use-load";
-import { ErrorText, Field, Loading } from "@/components/common";
+import { ErrorText, Field, Loading, SectionHeader } from "@/components/common";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, NativeSelect } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -69,28 +69,28 @@ export function HostApplications({ hostId, mutable }: { hostId: string; mutable:
   }
 
   return (
-    <section className="flex flex-col gap-3" aria-label="アプリ登録">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-base font-semibold">アプリ登録</h2>
-        <Button
-          variant="outline"
-          disabled={busy || list.loading}
-          onClick={() => {
-            reset();
-            void list.reload();
-          }}
-        >
-          一覧を更新
-        </Button>
-      </div>
-      <p className="text-sm text-muted-foreground">
-        Linux Managed
-        Serviceに向けた登録情報です。現在は登録と権限の設定に対応しています。デプロイ・起動・ログ取得はまだ利用できません。
-      </p>
+    <section className="flex flex-col gap-4" aria-label="アプリ登録">
+      <SectionHeader
+        title="アプリ登録"
+        description="Linux Managed Serviceに向けた登録情報です。現在は登録と権限の設定に対応しています。デプロイ・起動・ログ取得はまだ利用できません。"
+        actions={
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy || list.loading}
+            onClick={() => {
+              reset();
+              void list.reload();
+            }}
+          >
+            一覧を更新
+          </Button>
+        }
+      />
       {list.error && <ErrorText>{list.error}</ErrorText>}
       {error && <ErrorText>{error}</ErrorText>}
       {status && (
-        <p role="status" className="text-sm">
+        <p role="status" className="text-sm text-muted-foreground">
           {status}
         </p>
       )}
@@ -105,7 +105,7 @@ export function HostApplications({ hostId, mutable }: { hostId: string; mutable:
                 <TableHead>ランタイム</TableHead>
                 <TableHead>版</TableHead>
                 <TableHead>閲覧ロール</TableHead>
-                {manager && <TableHead>操作</TableHead>}
+                {manager && <TableHead className="text-right">操作</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -116,14 +116,15 @@ export function HostApplications({ hostId, mutable }: { hostId: string; mutable:
               )}
               {list.data.items.map((app) => (
                 <TableRow key={app.name}>
-                  <TableCell>{app.name}</TableCell>
+                  <TableCell className="font-mono text-[13px]">{app.name}</TableCell>
                   <TableCell>{app.config.runtime}</TableCell>
-                  <TableCell>{app.revision}</TableCell>
+                  <TableCell className="tabular-nums">{app.revision}</TableCell>
                   <TableCell>{app.config.read_roles.join(", ") || "管理者のみ"}</TableCell>
                   {manager && (
-                    <TableCell>
-                      <div className="flex gap-2">
+                    <TableCell className="py-1.5">
+                      <div className="flex justify-end gap-2">
                         <Button
+                          size="sm"
                           variant="outline"
                           disabled={busy}
                           onClick={() => {
@@ -138,7 +139,8 @@ export function HostApplications({ hostId, mutable }: { hostId: string; mutable:
                           設定
                         </Button>
                         <Button
-                          variant="outline"
+                          size="sm"
+                          variant="ghost"
                           disabled={busy}
                           onClick={() =>
                             void act(async () => {
@@ -172,7 +174,7 @@ export function HostApplications({ hostId, mutable }: { hostId: string; mutable:
       )}
       {manager && (
         <form
-          className="grid gap-3 rounded-lg border p-4"
+          className="max-w-xl rounded-xl border bg-card p-5"
           onSubmit={(event) => {
             event.preventDefault();
             void act(async () => {
@@ -195,8 +197,8 @@ export function HostApplications({ hostId, mutable }: { hostId: string; mutable:
             });
           }}
         >
-          <fieldset disabled={busy} className="grid gap-3">
-            <legend className="mb-3 font-medium">
+          <fieldset disabled={busy} className="grid gap-4">
+            <legend className="mb-4 text-base font-medium">
               {selected ? `${selected.name} の設定` : "アプリを登録"}
             </legend>
             <Field id="app-name" label="アプリ名（英小文字で開始）">
@@ -211,18 +213,17 @@ export function HostApplications({ hostId, mutable }: { hostId: string; mutable:
               />
             </Field>
             <Field id="app-runtime" label="予定するランタイム">
-              <select
+              <NativeSelect
                 id="app-runtime"
-                className="h-9 rounded-md border bg-background px-3 text-sm"
                 value={runtime}
                 onChange={(event) => setRuntime(event.target.value)}
               >
                 <option value="python">Python</option>
                 <option value="node">Node.js</option>
                 <option value="binary">ビルド済み実行ファイル</option>
-              </select>
+              </NativeSelect>
             </Field>
-            <label className="flex gap-2 text-sm">
+            <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
                 checked={viewer}
@@ -230,7 +231,7 @@ export function HostApplications({ hostId, mutable }: { hostId: string; mutable:
               />
               Viewerに登録情報の閲覧を許可
             </label>
-            <label className="flex gap-2 text-sm">
+            <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
                 checked={operator}

@@ -41,8 +41,8 @@ function Allowed({ when, children }: { when: (grants: Grant[]) => boolean; child
 function NotFound() {
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center gap-3 p-4">
-      <h1 className="text-xl font-semibold">ページが見つかりません</h1>
-      <Link to="/" className="text-sm text-primary underline-offset-4 hover:underline">
+      <h1 className="text-2xl font-medium">ページが見つかりません</h1>
+      <Link to="/" className="link text-sm">
         概要へ戻る
       </Link>
     </main>

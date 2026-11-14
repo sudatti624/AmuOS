@@ -7,9 +7,9 @@ export const Dialog = DialogPrimitive.Root;
 export const DialogTrigger = DialogPrimitive.Trigger;
 export const DialogClose = DialogPrimitive.Close;
 
-const overlay = "fixed inset-0 z-50 bg-black/50";
+const overlay = "fixed inset-0 z-50 bg-black/60";
 const panel =
-  "fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-xl border bg-card p-6 shadow-lg";
+  "fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-xl border bg-card p-6 shadow-[0_8px_24px_rgb(0_0_0/0.16)]";
 
 export function DialogContent({
   className,
@@ -44,7 +44,7 @@ export function DialogFooter({ className, ...props }: ComponentProps<"div">) {
 }
 
 export function DialogTitle({ className, ...props }: ComponentProps<typeof DialogPrimitive.Title>) {
-  return <DialogPrimitive.Title className={cn("text-lg font-semibold", className)} {...props} />;
+  return <DialogPrimitive.Title className={cn("text-base font-medium", className)} {...props} />;
 }
 
 export function DialogDescription({

@@ -47,7 +47,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             key={item.id}
             role={item.kind === "error" ? "alert" : "status"}
             className={cn(
-              "pointer-events-auto flex items-start gap-3 rounded-lg border bg-card p-3 text-sm shadow-lg",
+              "pointer-events-auto flex items-start gap-3 rounded-lg border bg-card p-3 text-sm shadow-[0_8px_24px_rgb(0_0_0/0.16)]",
               item.kind === "error" && "border-destructive/50",
             )}
           >

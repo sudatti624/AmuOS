@@ -5,7 +5,7 @@ import { useNotify } from "@/app/notifications";
 import { ReauthCancelled, useOwnerAction } from "@/app/reauth";
 import { useMe, useSession } from "@/app/session";
 import { useLoad } from "@/app/use-load";
-import { ErrorText, Field, Loading, PageHeader } from "@/components/common";
+import { ErrorText, Field, Loading, PageHeader, Status } from "@/components/common";
 import { duplicateGrant, GrantEditor, withoutOwner } from "@/components/grant-editor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -241,7 +241,7 @@ function UsersTab({ directory, reload }: { directory: Directory; reload: () => v
             const others = withoutOwner(user.grants);
             return (
               <TableRow key={user.id}>
-                <TableCell className="font-medium">
+                <TableCell>
                   {user.username}
                   {user.id === me.id && (
                     <span className="ml-2 text-xs text-muted-foreground">（自分）</span>
@@ -249,9 +249,9 @@ function UsersTab({ directory, reload }: { directory: Directory; reload: () => v
                 </TableCell>
                 <TableCell>
                   {user.enabled ? (
-                    <Badge variant="success">有効</Badge>
+                    <Status tone="success">有効</Status>
                   ) : (
-                    <Badge variant="secondary">無効</Badge>
+                    <Status tone="neutral">無効</Status>
                   )}
                 </TableCell>
                 <TableCell>
@@ -654,12 +654,10 @@ function InvitationsTab({ hosts }: { hosts: Host[] }) {
               <li key={invitation.id} className="grid gap-2 rounded-lg border p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="font-medium">{invitation.username}</span>
-                  <span className="text-xs text-muted-foreground">
-                    有効期限: {formatTime(invitation.expires_at)}
-                  </span>
+                  <span className="stamp">有効期限: {formatTime(invitation.expires_at)}</span>
                 </div>
                 {revoked.has(invitation.id) ? (
-                  <Badge variant="secondary">取り消し済み</Badge>
+                  <Status tone="neutral">取り消し済み</Status>
                 ) : (
                   <>
                     <code

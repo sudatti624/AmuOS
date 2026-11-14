@@ -48,6 +48,8 @@ test("files can be uploaded, edited, moved, downloaded and deleted through a rea
   expect(enrollment.status()).toBe(201);
   await server.startAgent((await enrollment.json()).code);
   await page.goto(`${server.origin}/hosts/${host.id}`);
+  // The section is kept in the address, so the reload below returns to it.
+  await page.getByRole("tab", { name: "ファイル", exact: true }).click();
   const files = page.getByRole("region", { name: "ファイル管理" });
   await files.getByText("公開ディレクトリの権限設定", { exact: true }).click();
   await files.getByLabel("ルート名", { exact: true }).fill("work");

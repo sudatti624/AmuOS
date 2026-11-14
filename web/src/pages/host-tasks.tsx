@@ -4,10 +4,8 @@ import { useConfirm } from "@/app/confirm";
 import { useMe } from "@/app/session";
 import { useNotify } from "@/app/notifications";
 import { useLoad } from "@/app/use-load";
-import { ErrorText, Field } from "@/components/common";
-import { Badge } from "@/components/ui/badge";
+import { ErrorText, Field, SectionHeader, Status } from "@/components/common";
 import { Button } from "@/components/ui/button";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -32,16 +30,16 @@ import { canCollect, canManageHost } from "@/lib/permissions";
 
 const states: Record<
   TaskState,
-  { label: string; variant: "default" | "secondary" | "success" | "warning" | "destructive" }
+  { label: string; tone: "neutral" | "success" | "warning" | "destructive" }
 > = {
-  queued: { label: "待機中", variant: "secondary" },
-  dispatching: { label: "配送中", variant: "default" },
-  running: { label: "実行中", variant: "default" },
-  succeeded: { label: "成功", variant: "success" },
-  failed: { label: "失敗", variant: "destructive" },
-  timed_out: { label: "期限切れ", variant: "warning" },
-  cancelled: { label: "取消", variant: "secondary" },
-  unknown: { label: "結果不明", variant: "warning" },
+  queued: { label: "待機中", tone: "neutral" },
+  dispatching: { label: "配送中", tone: "neutral" },
+  running: { label: "実行中", tone: "neutral" },
+  succeeded: { label: "成功", tone: "success" },
+  failed: { label: "失敗", tone: "destructive" },
+  timed_out: { label: "期限切れ", tone: "warning" },
+  cancelled: { label: "取消", tone: "neutral" },
+  unknown: { label: "結果不明", tone: "warning" },
 };
 
 const reasons: Record<string, string> = {
@@ -235,21 +233,19 @@ export function HostTasks({ host, onCollected }: { host: Host; onCollected: () =
   };
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <CardTitle>タスク</CardTitle>
-          <CardDescription>
-            「今すぐ収集」は、ホスト情報・監視値・サービスの状態をその場で取り直します。読み取りだけで、ホストを変更しません。
-          </CardDescription>
-        </div>
-        {collector && (
-          <Button onClick={() => void collect()} disabled={busy || host.state !== "active"}>
-            <RefreshCwIcon />
-            今すぐ収集
-          </Button>
-        )}
-      </CardHeader>
+    <section className="flex flex-col gap-4" aria-label="タスク">
+      <SectionHeader
+        title="タスク"
+        description="「今すぐ収集」は、ホスト情報・監視値・サービスの状態をその場で取り直します。読み取りだけで、ホストを変更しません。"
+        actions={
+          collector && (
+            <Button onClick={() => void collect()} disabled={busy || host.state !== "active"}>
+              <RefreshCwIcon />
+              今すぐ収集
+            </Button>
+          )
+        }
+      />
       {collector && host.state !== "active" && (
         <p className="text-sm text-muted-foreground">
           Agentが登録されているホストでだけ収集を依頼できます。
@@ -274,9 +270,11 @@ export function HostTasks({ host, onCollected }: { host: Host; onCollected: () =
             const retryable = !open.has(task.state) && !task.retried_by;
             return (
               <TableRow key={task.id}>
-                <TableCell className="tabular-nums">{formatTime(task.created_at)}</TableCell>
+                <TableCell className="stamp whitespace-nowrap">
+                  {formatTime(task.created_at)}
+                </TableCell>
                 <TableCell>
-                  <Badge variant={state.variant}>{state.label}</Badge>
+                  <Status tone={state.tone}>{state.label}</Status>
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">
                   <div className="flex flex-col gap-0.5">
@@ -288,7 +286,7 @@ export function HostTasks({ host, onCollected }: { host: Host; onCollected: () =
                   </div>
                 </TableCell>
                 {(collector || manager) && (
-                  <TableCell>
+                  <TableCell className="py-1.5">
                     <div className="flex justify-end gap-2">
                       {collector && task.state === "queued" && (
                         <Button size="sm" variant="outline" onClick={() => void cancel(task)}>
@@ -331,6 +329,6 @@ export function HostTasks({ host, onCollected }: { host: Host; onCollected: () =
           }}
         />
       )}
-    </Card>
+    </section>
   );
 }
