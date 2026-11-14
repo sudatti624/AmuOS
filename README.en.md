@@ -193,6 +193,22 @@ E2E tests require the Control Plane, Agent, development certificate tool binarie
 
 </details>
 
+<details>
+<summary>Preview only the web interface</summary>
+
+To check only how the interface looks and behaves, you can use a preview that answers with sample data. It does not start the Control Plane, the Agent, or a database, and it does not read or write files on your computer. From `web/`, build the interface and then start the preview:
+
+```sh
+pnpm exec vp build
+node scripts/preview-ui.cjs
+```
+
+Open `http://127.0.0.1:5180/` in a browser. The interface opens signed in as a sample owner (demo-owner). You can change the port, for example `node scripts/preview-ui.cjs 5181`. To see the sign-in screen as well, add `--login`; any username and password are accepted.
+
+After changing the interface, run `pnpm exec vp build` again and reload the browser. Changes you make in the preview last only while it runs and return to the sample data after a restart. The preview is for development only and has no authentication, so please do not use it for real operation.
+
+</details>
+
 ## Documentation
 
 | Topic | Resources (Japanese) |
